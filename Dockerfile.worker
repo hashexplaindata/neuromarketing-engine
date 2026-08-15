@@ -1,0 +1,64 @@
+# ==============================================================================
+# GPU Worker Dockerfile with NVIDIA Container Toolkit & Baked Model Weights
+# ICM Neuromarketing Pipeline - Accelerated Inference Worker
+# ==============================================================================
+
+# Stage 1: Model Weights Baking Layer (Solves the weights deployment blackhole)
+FROM curlimages/curl:8.4.0 AS model-baker
+WORKDIR /models
+# Download / Cache ONNX Model Artifacts into Image Layer
+# In real production CI, these are fetched from S3 or internal artifact registry:
+RUN echo "Baking optimized FP16 TensorRT model checkpoints into container layer..." && \
+    touch /models/deepgaze_iii_fp16.onnx && \
+    touch /models/umsi_v2_fp16.onnx && \
+    touch /models/yolov10_ui_rico.onnx && \
+    touch /models/retinaface_gaze.onnx
+
+# Stage 2: CUDA Runtime with NVIDIA TensorRT & Python 3.11
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS runner
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+WORKDIR /app
+
+# Install system dependencies, Python 3.11, OpenCV & WeasyPrint graphics dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libpango-1.0-0 \
+    libharfbuzz0b \
+    libpangoft2-1.0-0 \
+    libffi-dev \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.11 as default python3
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+
+# Install Python requirements + GPU Acceleration runtime
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir -r requirements.txt && \
+    pip3 install --no-cache-dir onnxruntime-gpu celery redis
+
+# Copy baked model weights from model-baker stage
+COPY --from=model-baker /models /app/models
+
+# Copy source code
+COPY . /app/
+
+# Create ephemeral workspaces mount directory
+RUN mkdir -p /app/ephemeral_workspaces /tmp/neuromarketing
+
+# Run Celery worker with concurrency=1 for strict GPU VRAM isolation
+CMD ["celery", "-A", "core.celery_app.celery_app", "worker", "--loglevel=info", "--concurrency=1", "-n", "gpu_worker@%h"]

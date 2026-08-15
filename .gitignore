@@ -1,0 +1,10 @@
+# Gitignore for Neuromarketing Suite
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+_config/models/*.onnx
+output/
+stages/*/output/

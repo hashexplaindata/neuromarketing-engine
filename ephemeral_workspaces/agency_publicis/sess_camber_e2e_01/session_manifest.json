@@ -1,0 +1,7 @@
+{
+  "tenant_id": "agency_publicis",
+  "session_id": "sess_camber_e2e_01",
+  "status": "INITIALIZED",
+  "ephemeral_path": "D:\\neuromarketing-engine\\ephemeral_workspaces\\agency_publicis\\sess_camber_e2e_01",
+  "s3_path": "s3://appwrite-storage/agency_publicis/sess_camber_e2e_01/"
+}
