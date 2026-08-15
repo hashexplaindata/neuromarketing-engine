@@ -1,187 +1,78 @@
+#!/usr/bin/env python3
 """
-Appwrite BaaS Integration Service
-Handles Authentication, Document Databases, and Storage Buckets
+Appwrite Cloud BaaS Client Helper
+Handles direct asset streaming, experiment record management, and storage bucket sync.
 """
 
-import io
-import json
+import os
 import logging
-from typing import Dict, Any, Optional
-from core.config import settings
+from typing import Optional, Dict, Any
 
-logger = logging.getLogger("icm.appwrite")
+from dotenv import load_dotenv
 
-try:
-    from appwrite.client import Client
-    from appwrite.services.account import Account
-    from appwrite.services.databases import Databases
-    from appwrite.services.storage import Storage
-    from appwrite.input_file import InputFile
-except ImportError:
-    Client = None
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+
+logger = logging.getLogger("core.appwrite")
+
 
 class AppwriteService:
     def __init__(self):
-        self.endpoint = settings.APPWRITE_ENDPOINT
-        self.project_id = settings.APPWRITE_PROJECT_ID
-        self.api_key = settings.APPWRITE_API_KEY
-        self.database_id = settings.APPWRITE_DATABASE_ID
-        self.jobs_collection_id = settings.APPWRITE_JOBS_COLLECTION_ID
-        self.bucket_id = settings.APPWRITE_STORAGE_BUCKET_ID
-        
-        # Local mock storage for development/offline testing
-        self._mock_db: Dict[str, Dict[str, Any]] = {}
-        self._mock_files: Dict[str, bytes] = {}
+        self.endpoint = os.getenv("VITE_APPWRITE_ENDPOINT", "https://cloud.appwrite.io/v1")
+        self.project_id = os.getenv("VITE_APPWRITE_PROJECT_ID", "neuromarketing-engine")
+        self.api_key = os.getenv("APPWRITE_API_KEY", "")
+        self.database_id = os.getenv("APPWRITE_DATABASE_ID", "NeuromarketingDB")
+        self.bucket_id = os.getenv("APPWRITE_STORAGE_BUCKET_ID", "neuromarketing-assets")
 
-        if Client and self.api_key and not self.api_key.startswith("appwrite_mock"):
+        self.client = None
+        self.storage = None
+        self.databases = None
+
+        if self.api_key and self.project_id:
             try:
+                from appwrite.client import Client
+                from appwrite.services.storage import Storage
+                from appwrite.services.databases import Databases
+
                 self.client = Client()
                 self.client.set_endpoint(self.endpoint)
                 self.client.set_project(self.project_id)
                 self.client.set_key(self.api_key)
-                self.databases = Databases(self.client)
+
                 self.storage = Storage(self.client)
-                self.account = Account(self.client)
-                logger.info(f"Appwrite client connected to {self.endpoint}")
+                self.databases = Databases(self.client)
+                logger.info("AppwriteService initialized successfully.")
             except Exception as e:
-                logger.warning(f"Appwrite client init notice: {e}")
-                self.client = None
-        else:
-            self.client = None
+                logger.warning(f"Appwrite initialization note: {e}")
 
-    def verify_appwrite_jwt(self, jwt_token: str) -> Dict[str, Any]:
-        """
-        Verifies Appwrite User JWT token.
-        Extracts user_id, tenant_id/org, and user profile.
-        """
-        if not jwt_token:
-            raise ValueError("Missing Appwrite JWT token")
-            
-        if jwt_token.startswith("Bearer ") or jwt_token.startswith("bearer "):
-            jwt_token = jwt_token[7:].strip()
+    def download_file_to_path(self, file_id: str, target_path: str) -> bool:
+        """Downloads a file directly from Appwrite Storage by file_id."""
+        if not self.storage:
+            return False
+        try:
+            result = self.storage.get_file_download(bucket_id=self.bucket_id, file_id=file_id)
+            with open(target_path, "wb") as f:
+                f.write(result)
+            logger.info(f"Downloaded Appwrite file '{file_id}' to '{target_path}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed downloading Appwrite file '{file_id}': {e}")
+            return False
 
-        # Dev/Test Mock token support: "test_tenant_{tenant_id}"
-        if jwt_token.startswith("test_tenant_"):
-            tenant_id = jwt_token.replace("test_tenant_", "").strip()
-            return {
-                "user_id": "usr_appwrite_dev",
-                "tenant_id": tenant_id,
-                "email": f"designer@{tenant_id}.com",
-                "name": "Figma Art Director"
-            }
-
-        # Real Appwrite JWT verification when live client exists
-        if self.client:
-            try:
-                user_client = Client()
-                user_client.set_endpoint(self.endpoint)
-                user_client.set_project(self.project_id)
-                user_client.set_jwt(jwt_token)
-                user_account = Account(user_client)
-                user_data = user_account.get()
-                
-                user_id = user_data.get("$id", "usr_unknown")
-                prefs = user_data.get("prefs", {})
-                tenant_id = prefs.get("tenant_id") or f"org_{user_id[:8]}"
-                email = user_data.get("email", "designer@agency.com")
-                
-                return {
-                    "user_id": user_id,
-                    "tenant_id": tenant_id,
-                    "email": email,
-                    "name": user_data.get("name", "Appwrite User")
-                }
-            except Exception as e:
-                logger.error(f"Appwrite JWT verification failed: {e}")
-                raise ValueError(f"Invalid or expired Appwrite JWT: {str(e)}")
-
-        raise ValueError("Appwrite client not connected for token validation")
-
-    def create_job_document(self, job_id: str, session_id: str, tenant_id: str, user_id: str, asset_filename: str) -> Dict[str, Any]:
-        """Creates an initial job document in Appwrite Database."""
-        doc_data = {
-            "job_id": job_id,
-            "session_id": session_id,
-            "tenant_id": tenant_id,
-            "user_id": user_id,
-            "asset_filename": asset_filename,
-            "status": "ENQUEUED",
-            "stage": 0,
-            "progress_percent": 0,
-            "created_at": None,
-            "results_json": "{}"
-        }
-        
-        if self.client and hasattr(self, 'databases'):
-            try:
-                doc = self.databases.create_document(
-                    database_id=self.database_id,
-                    collection_id=self.jobs_collection_id,
-                    document_id=job_id,
-                    data=doc_data
-                )
-                return doc
-            except Exception as e:
-                logger.warning(f"Appwrite create_document fallback: {e}")
-                
-        self._mock_db[job_id] = doc_data
-        return doc_data
-
-    def update_job_status(self, job_id: str, status: str, stage: int = 0, progress: int = 0, results: Optional[Dict[str, Any]] = None):
-        """Updates job status and progress in Appwrite Database."""
-        update_data = {
-            "status": status,
-            "stage": stage,
-            "progress_percent": progress
-        }
-        if results:
-            update_data["results_json"] = json.dumps(results)
-
-        if self.client and hasattr(self, 'databases'):
-            try:
-                self.databases.update_document(
-                    database_id=self.database_id,
-                    collection_id=self.jobs_collection_id,
-                    document_id=job_id,
-                    data=update_data
-                )
-                return
-            except Exception as e:
-                logger.warning(f"Appwrite update_document fallback: {e}")
-
-        # In-memory mock update / auto-create if needed
-        if job_id not in self._mock_db:
-            self._mock_db[job_id] = {"job_id": job_id}
-        self._mock_db[job_id].update(update_data)
-
-    def get_job_document(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Fetches job record from Appwrite Database."""
-        if self.client and hasattr(self, 'databases'):
-            try:
-                return self.databases.get_document(
-                    database_id=self.database_id,
-                    collection_id=self.jobs_collection_id,
-                    document_id=job_id
-                )
-            except Exception:
-                pass
-        return self._mock_db.get(job_id)
-
-    def upload_asset_file(self, file_id: str, file_bytes: bytes, filename: str) -> str:
-        """Uploads creative asset to Appwrite Storage Bucket."""
-        if self.client and hasattr(self, 'storage'):
-            try:
-                input_file = InputFile.from_bytes(file_bytes, filename=filename)
-                file_obj = self.storage.create_file(
-                    bucket_id=self.bucket_id,
-                    file_id=file_id,
-                    file=input_file
-                )
-                return file_obj.get("$id", file_id)
-            except Exception as e:
-                logger.warning(f"Appwrite storage upload fallback: {e}")
-                
-        self._mock_files[file_id] = file_bytes
-        return file_id
-
-appwrite_service = AppwriteService()
+    def get_experiment_status(self, experiment_id: str) -> Optional[Dict[str, Any]]:
+        """Queries the status of an experiment from Appwrite Database."""
+        if not self.databases:
+            return None
+        try:
+            from appwrite.query import Query
+            docs = self.databases.list_documents(
+                database_id=self.database_id,
+                collection_id="experiments",
+                queries=[Query.equal("experiment_id", experiment_id), Query.limit(1)]
+            )
+            if docs and docs.get("documents"):
+                return docs["documents"][0]
+            return None
+        except Exception as e:
+            logger.warning(f"Error querying experiment status: {e}")
+            return None

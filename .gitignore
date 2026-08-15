@@ -1,10 +1,40 @@
-# Gitignore for Neuromarketing Suite
+# Environment and Secrets (NEVER COMMIT)
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python virtual environments & bytecode
 .venv/
+venv/
+env/
 __pycache__/
-*.pyc
-.pytest_cache/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+ephemeral_workspaces/
+
+# Model weights & checkpoint binaries
+*.pt
+*.pth
+*.onnx
+*.bin
+yolov8n.pt
+_config/models/
+
+# Node modules & frontend builds
+node_modules/
+studio/node_modules/
+studio/dist/
+studio/.vite/
+
+# Output directories & temp logs
+output/analysis_results/*.png
+output/analysis_results/variants/
+output/analysis_results/video_frames/
 *.log
-_config/models/*.onnx
-output/
-stages/*/output/
+
+# OS generated files
+.DS_Store
+Thumbs.db
