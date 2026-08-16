@@ -1,20 +1,10 @@
 # ==============================================================================
-# GPU Worker Dockerfile with NVIDIA Container Toolkit & Baked Model Weights
-# ICM Neuromarketing Pipeline - Accelerated Inference Worker
+# GPU Worker Dockerfile with NVIDIA Container Runtime
+# Neuromarketing Studio Pipeline - Accelerated Inference Worker
 # ==============================================================================
 
-# Stage 1: Model Weights Baking Layer (Solves the weights deployment blackhole)
-FROM curlimages/curl:8.4.0 AS model-baker
-WORKDIR /models
-# Download / Cache ONNX Model Artifacts into Image Layer
-# In real production CI, these are fetched from S3 or internal artifact registry:
-RUN echo "Baking optimized FP16 TensorRT model checkpoints into container layer..." && \
-    touch /models/deepgaze_iii_fp16.onnx && \
-    touch /models/umsi_v2_fp16.onnx && \
-    touch /models/yolov10_ui_rico.onnx && \
-    touch /models/retinaface_gaze.onnx
-
-# Stage 2: CUDA Runtime with NVIDIA TensorRT & Python 3.11
+# CUDA Runtime with Python 3.11. Model weights are downloaded from their
+# verified upstream checkpoints at first worker start and cached under /app/models.
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS runner
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -22,6 +12,10 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV TORCH_HOME=/app/models/torch
+ENV YOLO_CONFIG_DIR=/app/models/ultralytics
+ENV EASYOCR_MODULE_PATH=/app/models/easyocr
+ENV HOME=/app
 
 WORKDIR /app
 
@@ -46,19 +40,16 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
     update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
 
 # Install Python requirements + GPU Acceleration runtime
-COPY requirements.txt .
+COPY requirements-worker.txt .
 RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir -r requirements.txt && \
+    pip3 install --no-cache-dir -r requirements-worker.txt && \
     pip3 install --no-cache-dir onnxruntime-gpu celery redis
-
-# Copy baked model weights from model-baker stage
-COPY --from=model-baker /models /app/models
 
 # Copy source code
 COPY . /app/
 
 # Create ephemeral workspaces mount directory
-RUN mkdir -p /app/ephemeral_workspaces /tmp/neuromarketing
+RUN mkdir -p /app/ephemeral_workspaces /tmp/neuromarketing /app/models/torch /app/models/ultralytics /app/models/easyocr
 
-# Run Celery worker with concurrency=1 for strict GPU VRAM isolation
-CMD ["celery", "-A", "core.celery_app.celery_app", "worker", "--loglevel=info", "--concurrency=1", "-n", "gpu_worker@%h"]
+# Run the canonical Neuromarketing Studio queue daemon with one process for strict GPU VRAM isolation
+CMD ["python3", "-m", "workers.camber_worker"]

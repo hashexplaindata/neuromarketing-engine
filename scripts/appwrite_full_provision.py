@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Appwrite Full Infrastructure Provisioner
-ICM Neuromarketing Platform - Master Architecture Specification v5.0
+Neuromarketing Studio Platform - Master Architecture Specification v5.0
 Provisions Storage Buckets, Auth Teams & Roles, Cloud Functions, and Messaging Topics.
 """
 

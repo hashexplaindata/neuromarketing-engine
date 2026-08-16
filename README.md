@@ -1,4 +1,4 @@
-# Neuromarketing Suite V5.0 — Consumer Cognitive & Visual Attention Analytics
+# Neuromarketing Studio V5.0 — Consumer Cognitive & Visual Attention Analytics
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)

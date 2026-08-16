@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.env.*
+output/
+ephemeral_workspaces/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+studio/
+tests/
+input_assets/
+*.patch
+*.log
+README.md
+CAMBER_SETUP_NEUROMARKETING_STUDIO.md
+camber_app_definition.template.json

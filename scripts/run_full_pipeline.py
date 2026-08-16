@@ -371,7 +371,7 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0) -> di
     experiment_id = f"exp_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
     print("=" * 85)
-    print("NEUROMARKETING SUITE — UNIVERSAL MULTI-TIER SCIENTIFIC PIPELINE")
+    print("NEUROMARKETING STUDIO — UNIVERSAL MULTI-TIER SCIENTIFIC PIPELINE")
     print(f"Target Media:  {input_media_path}")
     print(f"Experiment ID: {experiment_id}")
     print("=" * 85)

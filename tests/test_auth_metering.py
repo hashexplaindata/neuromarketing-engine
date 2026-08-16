@@ -7,6 +7,7 @@ import pytest
 import time
 from core.auth import create_access_token, verify_jwt_token, AuthenticatedUser
 from core.appwrite_service import appwrite_service
+from core.config import settings
 
 def test_jwt_token_creation_and_verification():
     tenant_id = "agency_publicis"
@@ -28,7 +29,14 @@ def test_expired_token_rejection():
         verify_jwt_token(f"Bearer {token}")
     assert "expired" in str(excinfo.value).lower()
 
-def test_mock_dev_bypass_token():
+def test_mock_dev_bypass_token(monkeypatch):
+    monkeypatch.setattr(settings, "DEBUG", True)
     user = verify_jwt_token("Bearer test_tenant_agency_omnicom")
     assert user.tenant_id == "agency_omnicom"
     assert user.user_id == "usr_dev_001"
+
+
+def test_mock_dev_bypass_rejected_in_production(monkeypatch):
+    monkeypatch.setattr(settings, "DEBUG", False)
+    with pytest.raises(ValueError):
+        verify_jwt_token("Bearer test_tenant_agency_omnicom")

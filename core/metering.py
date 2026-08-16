@@ -1,6 +1,6 @@
 """
 Stripe Quota & Billing Metering Engine
-ICM Neuromarketing Platform - Tier Enforcement Layer
+Neuromarketing Studio Platform - Tier Enforcement Layer
 """
 
 import os

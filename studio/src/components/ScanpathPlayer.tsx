@@ -17,13 +17,11 @@ export const ScanpathPlayer: React.FC<ScanpathPlayerProps> = ({
     let timer: any;
     if (isPlaying) {
       timer = setInterval(() => {
-        onStepChange((prev: number) => {
-          if (prev >= totalSteps) {
-            setIsPlaying(false);
-            return totalSteps;
-          }
-          return prev + 1;
-        });
+        const nextStep = currentStep >= totalSteps ? totalSteps : currentStep + 1;
+        if (nextStep >= totalSteps) {
+          setIsPlaying(false);
+        }
+        onStepChange(nextStep);
       }, 650);
     }
     return () => clearInterval(timer);

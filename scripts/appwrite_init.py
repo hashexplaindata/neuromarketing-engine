@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Appwrite Database & Collection Schema Initializer (with Network Resilience & Retries)
-ICM Neuromarketing Platform - Master Architecture Specification v5.0
+Neuromarketing Studio Platform - Master Architecture Specification v5.0
 Applies the exact schema directly to your live Appwrite Cloud instance.
 """
 

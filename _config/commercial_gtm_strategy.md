@@ -1,4 +1,4 @@
-# NEUROMARKETING ATTENTION PLATFORM: GO-TO-MARKET (GTM) STRATEGY
+# NEUROMARKETING STUDIO — PREDICTIVE CREATIVE DIAGNOSTICS PLATFORM: GO-TO-MARKET (GTM) STRATEGY
 **Objective:** Commercialization, Positioning, and Phase 2 Monetization.
 *(Note: Do not use this file for backend engineering or cloud infrastructure routing).*
 

@@ -1,6 +1,6 @@
 """
 Celery Application Instance & Redis Progress Event Streamer
-ICM Neuromarketing Async Task Queue
+Neuromarketing Studio Async Task Queue
 """
 
 import json

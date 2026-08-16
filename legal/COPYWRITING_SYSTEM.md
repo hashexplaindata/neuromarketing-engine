@@ -1,9 +1,9 @@
-# Neuromarketing Suite — Brand Copywriting & Positioning System
+# Neuromarketing Studio — Brand Copywriting & Positioning System
 
 ---
 
 ## 1. Core Brand Identity
-* **Product Name:** Neuromarketing Suite
+* **Product Name:** Neuromarketing Studio
 * **Category:** Enterprise Predictive Visual Attention & Cognitive Neuromarketing Platform
 * **Primary Tagline:** *"Predict Consumer Attention Before You Launch."*
 * **Secondary Taglines:**
@@ -16,7 +16,7 @@
 
 ### Pillar 1: Sub-Second Predictive Heatmaps
 * **Headline:** See What Your Customers See in the First 250 Milliseconds.
-* **Body:** Powered by DeepGaze III and UMSI neural backbones, Neuromarketing Suite models the human visual cortex to predict exact eye fixations, scanpaths, and foveal attention capture with 95%+ benchmark correlation.
+* **Body:** Powered by DeepGaze III and UMSI neural backbones, Neuromarketing Studio models the human visual cortex to predict exact eye fixations, scanpaths, and foveal attention capture with 95%+ benchmark correlation.
 
 ### Pillar 2: Psychophysics & Cognitive Load Scoring
 * **Headline:** Optimize Visual Hierarchy. Eliminate Decision Fatigue.

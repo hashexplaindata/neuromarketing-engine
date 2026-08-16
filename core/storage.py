@@ -1,6 +1,6 @@
 """
 Ephemeral Multi-Tenant Workspace & Storage Manager
-ICM Neuromarketing Pipeline - Storage Virtualization Layer
+Neuromarketing Studio Pipeline - Storage Virtualization Layer
 """
 
 import os

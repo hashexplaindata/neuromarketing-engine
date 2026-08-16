@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 OpenCV Preprocessor & Early Cortex Low-Level Stress Analyzer
-ICM Neuromarketing Pipeline - Stage 01 Mechanical Worker
+Neuromarketing Studio Pipeline - Stage 01 Mechanical Worker
 """
 
 import os

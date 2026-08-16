@@ -52,8 +52,10 @@ def verify_jwt_token(token: str) -> AuthenticatedUser:
     if token.startswith("Bearer ") or token.startswith("bearer "):
         token = token[7:].strip()
         
-    # 1. Dev/Test Mock bypass token format: "test_tenant_{tenant_id}"
-    if token.startswith("test_tenant_"):
+    # 1. Development-only mock token. Never accept this format in production.
+    if token.startswith("test_tenant_") and not settings.DEBUG:
+        raise ValueError("Development authentication token is disabled in production")
+    if settings.DEBUG and token.startswith("test_tenant_"):
         tenant_id = token.replace("test_tenant_", "").strip()
         return AuthenticatedUser(
             user_id="usr_dev_001",
@@ -62,18 +64,20 @@ def verify_jwt_token(token: str) -> AuthenticatedUser:
             name="Figma Designer"
         )
 
-    # 2. Try Appwrite JWT Verification
-    try:
-        user_info = appwrite_service.verify_appwrite_jwt(token)
-        return AuthenticatedUser(
-            user_id=user_info["user_id"],
-            tenant_id=user_info["tenant_id"],
-            email=user_info["email"],
-            name=user_info.get("name", "Figma User")
-        )
-    except ValueError as val_err:
-        if "Invalid or expired" in str(val_err):
-            raise val_err
+    # 2. Try Appwrite JWT verification only when a remote Appwrite auth path is configured.
+    # A local service-key fallback cannot validate a user JWT and must not block
+    # the standard signed-token path used by local development and tests.
+    if appwrite_service.remote_enabled:
+        try:
+            user_info = appwrite_service.verify_appwrite_jwt(token)
+            return AuthenticatedUser(
+                user_id=user_info["user_id"],
+                tenant_id=user_info["tenant_id"],
+                email=user_info["email"],
+                name=user_info.get("name", "Figma User")
+            )
+        except ValueError:
+            pass
 
     # 3. Standard HS256 verification (for signed client test tokens)
     if jwt:
