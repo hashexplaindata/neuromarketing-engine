@@ -206,6 +206,9 @@ def compute_cognitive_load(image_rgb):
     # 3. Feature Congestion
     local_mean = cv2.blur(gray.astype(np.float32), (15, 15))
     local_var = cv2.blur((gray.astype(np.float32) - local_mean) ** 2, (15, 15))
+    # OpenCV float32 convolution can produce tiny negative round-off values.
+    # Clamp before sqrt so the reported proxy remains finite and reproducible.
+    local_var = np.maximum(local_var, 0.0)
     lum_congestion = float(np.mean(np.sqrt(local_var))) / 128.0
 
     # Composite CLI

@@ -6,6 +6,8 @@ Verifies BaaS integration, instant queue dispatch, and end-to-end processing.
 import json
 import base64
 import pytest
+import uuid
+from pathlib import Path
 from fastapi.testclient import TestClient
 from api.main import app
 from core.appwrite_service import appwrite_service
@@ -18,8 +20,8 @@ client = TestClient(app)
 def test_appwrite_auth_and_database():
     tenant = "agency_ogilvy"
     user_id = "usr_ogilvy_99"
-    job_id = "job_test_appwrite_01"
-    session_id = "sess_test_appwrite_01"
+    job_id = f"job_test_appwrite_{uuid.uuid4().hex[:10]}"
+    session_id = f"sess_test_appwrite_{uuid.uuid4().hex[:10]}"
     
     # 1. Test JWT Verification
     user_data = appwrite_service.verify_appwrite_jwt(f"test_tenant_{tenant}")
@@ -87,19 +89,21 @@ def test_fastapi_analyze_endpoint_instant_return():
     assert data["ws_stream_url"].startswith("/ws/jobs/job_")
 
 def test_camber_cloud_gpu_worker_pipeline_execution():
-    job_id = "job_camber_e2e_01"
-    session_id = "sess_camber_e2e_01"
+    job_id = f"job_camber_e2e_{uuid.uuid4().hex[:10]}"
+    session_id = f"sess_camber_e2e_{uuid.uuid4().hex[:10]}"
     
     # Pre-register job document in Appwrite DB
     appwrite_service.create_job_document(job_id, session_id, "agency_publicis", "usr_pub_01", "packaging_box.png")
 
+    asset_path = Path(__file__).resolve().parents[1] / "input_assets" / "user_test_thumbnail.jpg"
+    encoded_asset = base64.b64encode(asset_path.read_bytes()).decode("ascii")
     task = {
         "job_id": job_id,
         "session_id": session_id,
         "tenant_id": "agency_publicis",
         "user_id": "usr_pub_01",
-        "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-        "filename": "packaging_box.png"
+        "image_base64": encoded_asset,
+        "filename": asset_path.name
     }
     
     # Execute Camber Cloud GPU pipeline worker
@@ -110,10 +114,12 @@ def test_camber_cloud_gpu_worker_pipeline_execution():
     assert "canvas_overlay" in payload
     assert "neuromarketing_metrics" in payload
     assert "domain_kpis" in payload["neuromarketing_metrics"]
+    assert payload.get("artifact_file_ids")
+    assert "thermal_heatmap" in payload["artifact_file_ids"]
     
     # Verify Appwrite Database marked as COMPLETED
     doc = appwrite_service.get_job_document(job_id)
     assert doc is not None
-    assert doc["status"] == "COMPLETED"
+    assert doc["status"] == "COMPLETE"
     assert doc["stage"] == 6
     assert doc["progress_percent"] == 100

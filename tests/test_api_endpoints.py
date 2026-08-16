@@ -54,3 +54,25 @@ def test_job_status_endpoint():
     data = response.json()
     assert data["job_id"] == "job_12345"
     assert "status" in data
+
+
+def test_job_artifact_hydration(monkeypatch):
+    from api import routes
+
+    monkeypatch.setattr(routes.appwrite_service, "get_job_document", lambda job_id, tenant_id=None: {
+        "job_id": job_id,
+        "tenant_id": tenant_id,
+        "status": "COMPLETE",
+        "results_json": '{"artifact_file_ids":{"thermal_heatmap":"artifact_heatmap_1"}}',
+    })
+    monkeypatch.setattr(routes.appwrite_service, "download_file_bytes", lambda file_id, tenant_id=None: b"png-bytes" if file_id == "artifact_heatmap_1" else None)
+
+    token = create_access_token("agency_artifact", "usr_artifact", "artifact@example.com")
+    response = client.get(
+        "/api/v1/jobs/job_artifact_1/artifacts/thermal_heatmap",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content == b"png-bytes"

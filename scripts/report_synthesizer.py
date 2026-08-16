@@ -1,124 +1,150 @@
-#!/usr/bin/env python3
-"""
-SOTA LLM Executive Report Synthesizer
-Uses Google Gemini Live API with real computed metrics.
+"""Executive report synthesis from validated computational results.
+
+Gemini is an optional narrative layer. The deterministic fallback remains
+available for offline operation, but its status is explicit in the report.
 """
 
-import os
-import sys
+from __future__ import annotations
+
 import json
 import logging
-from typing import Dict, Any, Optional
+import os
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
-dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-load_dotenv(dotenv_path)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
 logger = logging.getLogger("report.synthesizer")
 
-# Supported Google Gemini live model endpoints
-ALLOWED_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-2.5-flash"
-]
+
+def _strip_json_fence(raw_text: str) -> str:
+    text = raw_text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+
+def _build_prompt(experiment_id: str, metrics_data: Dict[str, Any], branding_config: Optional[Dict[str, Any]]) -> str:
+    return f"""
+You are a senior visual-attention and behavioural-science report editor. Interpret
+only the supplied computational results for experiment '{experiment_id}'. Do not
+invent human participants, EEG, eye-tracking observations, memory, emotion,
+clicks, conversions, or statistical significance that are not present in the
+input.
+
+EXPERIMENT RESULTS:
+{json.dumps(metrics_data, indent=2, default=str)}
+
+BRANDING CONFIG:
+{json.dumps(branding_config or {}, indent=2, default=str)}
+
+Write a client-ready JSON object with exactly these keys:
+- executive_summary: 2-3 precise sentences describing the observed/modelled visual hierarchy.
+- cognitive_load_analysis: explain the supplied visual-complexity metrics and their limitations.
+- brand_salience_rating: integer 1-100 only if the input supports it; otherwise null.
+- actionable_recommendations: an array of 3-5 specific design or testing recommendations.
+- winner_variant_id: only use a supplied variant winner; otherwise null.
+- evidence_status: one of MEASURED, MODEL_PREDICTED, DERIVED_PROXY, or MIXED.
+- limitations: an array of explicit limitations and alternative explanations.
+
+Recommendations must be framed as hypotheses or design actions to test. Return
+ONLY valid JSON.
+"""
+
+
+def _gemini_generate(api_key: str, model_name: str, prompt: str) -> str:
+    """Use the current Google GenAI SDK, with legacy compatibility if installed."""
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.15,
+                top_p=0.95,
+                response_mime_type="application/json",
+            ),
+        )
+        return response.text or ""
+    except ImportError:
+        import google.generativeai as genai
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config={"temperature": 0.15, "top_p": 0.95},
+        )
+        return model.generate_content(prompt).text or ""
+
 
 def synthesize_executive_report(
     experiment_id: str,
     metrics_data: Dict[str, Any],
-    branding_config: Optional[Dict[str, Any]] = None
+    branding_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-    
-    is_placeholder_key = (
-        not gemini_api_key or 
-        gemini_api_key.startswith("your_gemini") or 
-        gemini_api_key == "gemini_api_key_placeholder"
-    )
-
-    target_model = "gemini-2.0-flash"
+    gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+    target_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    is_placeholder_key = not gemini_api_key or gemini_api_key.startswith("your_") or gemini_api_key.endswith("placeholder")
+    prompt = _build_prompt(experiment_id, metrics_data, branding_config)
 
     if not is_placeholder_key:
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=gemini_api_key)
-            
-            model = genai.GenerativeModel(
-                model_name=target_model,
-                generation_config={"temperature": 0.15, "top_p": 0.95}
-            )
-
-            prompt = f"""
-You are the Chief Neuromarketing Scientist and Visual Attention Specialist. 
-Analyze the following REAL computational eye-tracking, saliency, and psychophysics data for Experiment '{experiment_id}'.
-
-EXPERIMENT METRICS (COMPUTED FROM DEEPGAZE IIE, DEEPGAZE III, YOLOV8, EASYOCR):
-{json.dumps(metrics_data, indent=2)}
-
-BRANDING CONFIG:
-{json.dumps(branding_config or {}, indent=2)}
-
-SCIENTIFIC STANDARDS:
-- s-AUC > 0.75 indicates high discriminative visual attention.
-- NSS > 2.0 indicates strong focal visual hit quality.
-- Cognitive Load Index (0-100 based on Shannon Entropy & Canny Edge Density) > 55 indicates risk of visual clutter.
-- Cohen's d > 0.8 indicates large statistical effect size.
-
-TASK:
-Provide a rigorous, executive-level JSON evaluation containing the following exact keys:
-1. "executive_summary": 2-3 precise sentences detailing visual hierarchy, hero focus, and text readability.
-2. "cognitive_load_analysis": Detailed psychophysics assessment of scene complexity, Shannon entropy, and visual clutter.
-3. "brand_salience_rating": Integer score from 1-100 based on focal capture speed of the primary branding/CTA assets.
-4. "actionable_recommendations": Array of 3-5 specific, high-impact design recommendations to maximize conversion.
-5. "winner_variant_id": Identifier of the variant with highest statistical significance and attention capture.
-
-Return ONLY valid JSON.
-"""
-            response = model.generate_content(prompt)
-            raw_text = response.text.strip()
-            if raw_text.startswith("```json"):
-                raw_text = raw_text[7:]
-            if raw_text.endswith("```"):
-                raw_text = raw_text[:-3]
-            scorecard = json.loads(raw_text.strip())
-            scorecard["synthesis_engine"] = f"{target_model} (Google AI Studio Live)"
-            logger.info(f"Live Gemini synthesis complete ({target_model})")
+            scorecard = json.loads(_strip_json_fence(_gemini_generate(gemini_api_key, target_model, prompt)))
+            if not isinstance(scorecard, dict):
+                raise ValueError("Gemini response was not a JSON object")
+            scorecard["synthesis_engine"] = f"{target_model} (Google GenAI)"
+            scorecard["synthesis_status"] = "SUCCESS"
+            scorecard.setdefault("evidence_status", "MIXED")
+            logger.info("Live Gemini synthesis complete (%s)", target_model)
             return scorecard
+        except Exception as exc:
+            error_text = str(exc)
+            logger.warning("Gemini synthesis unavailable; deterministic fallback used: %s", error_text)
+            synthesis_error = error_text[:500]
+    else:
+        synthesis_error = "Gemini API key is not configured"
 
-        except Exception as e:
-            logger.warning(f"Live Gemini API call note ({e}). Utilizing deterministic psychophysics heuristic engine.")
-
-    # High-Precision Deterministic Psychophysics Synthesis (Offline / Fallback)
-    nss_score = float(metrics_data.get("nss_score", 2.15))
-    s_auc = float(metrics_data.get("s_auc", 0.82))
-    cognitive_load = float(metrics_data.get("cognitive_load_score", 38.4))
-    top_variant = metrics_data.get("winning_variant", "Baseline")
-
-    cognitive_status = "Optimal (Low Cognitive Clutter)" if cognitive_load < 40 else ("Moderate" if cognitive_load < 55 else "High (Decision Fatigue Risk)")
-    salience_score = int(min(98, max(50, (min(1.0, s_auc) * 65) + (min(2.5, nss_score / 5.0) * 16))))
+    # Deterministic fallback. It is explicitly labelled and does not claim live LLM output.
+    nss_score = float(metrics_data.get("nss_score", 0.0) or 0.0)
+    s_auc = float(metrics_data.get("s_auc", 0.0) or 0.0)
+    cognitive_load = float(metrics_data.get("cognitive_load_score", 0.0) or 0.0)
+    top_variant = metrics_data.get("winning_variant")
+    cognitive_status = "Lower derived complexity" if cognitive_load < 40 else ("Moderate derived complexity" if cognitive_load < 55 else "Higher derived complexity")
+    salience_score = int(min(98, max(1, (min(1.0, max(0.0, s_auc)) * 65) + (min(2.5, max(0.0, nss_score) / 5.0) * 16))))
 
     return {
         "experiment_id": experiment_id,
         "executive_summary": (
-            f"Computational scanpath modeling (DeepGaze IIE + III) confirms strong focal attention capture "
-            f"(s-AUC: {s_auc:.3f}, NSS: {nss_score:.2f}). {top_variant} establishes a clear visual hierarchy, "
-            f"directing primary foveal fixations to the hero figure and title typography."
+            f"The pretrained visual-attention models produced a predicted saliency pattern with "
+            f"s-AUC {s_auc:.3f} and NSS {nss_score:.2f}. These outputs describe modelled visual priority, "
+            f"not observed participant fixation or downstream behaviour."
         ),
         "cognitive_load_analysis": (
-            f"Spatial Shannon Entropy and Canny edge density yield a Cognitive Load Index of {cognitive_load:.1f}/100 ({cognitive_status})."
+            f"Derived Shannon-entropy and edge-density inputs yield a complexity index of {cognitive_load:.1f}/100 "
+            f"({cognitive_status}). This is a visual-complexity proxy and should be tested with human comprehension or task data."
         ),
         "brand_salience_rating": salience_score,
         "actionable_recommendations": [
-            "Maintain high-contrast headline placement to preserve sub-100ms initial fixation velocity.",
-            "Increase negative space surrounding secondary copy blocks to eliminate residual saccade competition.",
-            "Ensure branding watermark maintains >10% isoline density relative to the primary hero visual."
+            "Compare the current asset with a controlled variant that changes one design factor at a time.",
+            "Validate the predicted focal region with observed attention, recall, or task-completion data before making a behavioural claim.",
+            "Review secondary copy and CTA separation where the predicted saliency map shows competing peaks.",
         ],
         "winner_variant_id": top_variant,
-        "synthesis_engine": f"{target_model} (High-Precision Deterministic Heuristics)"
+        "evidence_status": "MODEL_PREDICTED",
+        "limitations": [
+            "No participant, EEG, eye-tracking, click, conversion, or recall outcome was supplied to this synthesis.",
+            "The fallback narrative was generated deterministically because the Gemini provider was unavailable.",
+        ],
+        "synthesis_engine": "Deterministic validated fallback",
+        "synthesis_status": "FALLBACK",
+        "synthesis_error": synthesis_error,
     }
