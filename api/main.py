@@ -42,7 +42,7 @@ app.include_router(canonical_router, prefix="/api/v1")
 def health_check():
     return {
         "status": "HEALTHY",
-        "architecture": "Tenant-authenticated API + Appwrite Storage + Upstash Redis + worker inference",
+        "architecture": "Tenant-authenticated API + Appwrite Storage + Modal GPU inference",
         "version": "5.0.0",
     }
 

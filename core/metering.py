@@ -35,7 +35,7 @@ TIER_QUOTAS = {
     }
 }
 
-# In-memory quota ledger for development/mocking (in production, backed by Redis/Postgres)
+# In-memory quota ledger for development/mocking; production persistence remains provider-neutral.
 _TENANT_LEDGER: Dict[str, Dict[str, Any]] = {}
 
 class MeteringService:

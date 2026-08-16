@@ -40,5 +40,5 @@ Once the platform achieves product-market fit with beta users, monetization will
 
 ## 5. SCALING & INFRASTRUCTURE ECONOMICS
 To bypass millions of dollars in GPU clustering and data acquisition, the platform utilizes **Open-Source Layering**.
-*   **Execution:** Quantized models (DeepGaze III, UMSI) run locally on scalable, spot-instance GPU cloud nodes (Camber). Model weight licensing is $0.
+*   **Execution:** Quantized models (DeepGaze III, UMSI) run in private, autoscaling Modal GPU Functions built from the versioned worker image. Model weight licensing is $0 where the chosen open-source licenses permit commercial use.
 *   **Fallback (API Arbitrage):** If scaling local compute becomes an immediate bottleneck during a traffic surge, the backend can temporarily route requests through existing commercial APIs (Wholesale to Retail arbitrage) while maintaining total ownership of the frontend Figma UI and customer relationship.
