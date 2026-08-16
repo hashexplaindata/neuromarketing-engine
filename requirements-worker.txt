@@ -19,6 +19,8 @@ requests>=2.32.0
 appwrite>=5.0.0,<24
 datasets>=2.20.0
 google-genai>=0.1.0
+# Legacy compatibility path used only when the current SDK is unavailable.
+google-generativeai>=0.8.0
 # Worker/runtime-only dependencies used by the current inference path.
 deepgaze-pytorch>=1.2.1
 redis>=5.0.0,<7

@@ -1,0 +1,44 @@
+name: Build Neuromarketing Studio Camber Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Container tag to publish'
+        required: true
+        default: 'camber-worker'
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/neuromarketing-engine:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.worker
+          push: true
+          tags: ${{ steps.image.outputs.name }}
+
+      - name: Print image reference
+        run: echo "Published ${{ steps.image.outputs.name }}"
