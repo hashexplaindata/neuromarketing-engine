@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import shutil
 import tempfile
 import time
 import uuid
@@ -24,6 +25,8 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 from core.appwrite_service import appwrite_service
 from core.contracts import JobStatus
 from core.vram_manager import VRAMManager
+from scripts.media_adapters import UnsupportedMediaError, detect_media_type, prepare_media_bundle
+from scripts.report_exports import export_all, write_json_report
 from scripts.run_full_pipeline import run_full_pipeline
 
 logger = logging.getLogger("modal_worker")
@@ -96,6 +99,7 @@ def process_modal_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
     filename = task.get("filename", "asset.bin")
     analysis_id = task.get("analysis_id") or task.get("experiment_id") or job_id
     temp_path: Optional[str] = None
+    workspace: Optional[str] = None
 
     try:
         service.update_job_status(job_id, JobStatus.RUNNING.value, stage=1, progress=5, tenant_id=tenant_id, message="Modal worker accepted analysis job")
@@ -111,8 +115,52 @@ def process_modal_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
             else:
                 raise ValueError("Task has neither image_base64 nor an Appwrite file ID")
 
+        workspace = tempfile.mkdtemp(prefix=f"neuromarketing-{job_id}-")
+        media_type = detect_media_type(temp_path)
         with VRAMManager.vram_stage("modal_full_execution"):
-            report = run_full_pipeline(temp_path)
+            if media_type in {"image", "video"}:
+                report = run_full_pipeline(temp_path, output_dir=workspace)
+            else:
+                bundle = prepare_media_bundle(temp_path, os.path.join(workspace, "normalized"), max_frames=20)
+                frame_reports = []
+                for index, frame in enumerate(bundle.get("frames", [])[:20]):
+                    frame_path = frame.get("frame_path")
+                    if not frame_path:
+                        continue
+                    frame_reports.append(run_full_pipeline(
+                        frame_path,
+                        output_dir=os.path.join(workspace, f"frame_{index:03d}"),
+                    ))
+                primary_report = frame_reports[0] if frame_reports else {}
+                report = {
+                    "status": "SUCCESS" if frame_reports or bundle.get("structured_data") else "INGESTED",
+                    "media_type": bundle.get("media_type", media_type).upper(),
+                    "pipeline_version": "5.0.0-media-adapter",
+                    "job_id": job_id,
+                    "experiment_id": analysis_id,
+                    "asset": {
+                        "filename": filename,
+                        "frames_analyzed": len(frame_reports),
+                        "structured_data_present": bool(bundle.get("structured_data")),
+                    },
+                    "evidence_status": bundle.get("structured_data", {}).get("evidence_status", "MODEL_INPUT_ASSET") if isinstance(bundle.get("structured_data"), dict) else "MODEL_INPUT_ASSET",
+                    "structured_data": bundle.get("structured_data"),
+                    "page_reports": [
+                        {
+                            "media_type": child.get("media_type"),
+                            "metrics": child.get("metrics", {}),
+                            "ctr_forecast": child.get("ctr_forecast", {}),
+                            "neuromarketing_indices": child.get("neuromarketing_indices", {}),
+                        }
+                        for child in frame_reports
+                    ],
+                    "visual_artifacts": dict(primary_report.get("visual_artifacts", {})),
+                    "interpretation_boundary": "Structured and rendered asset outputs are either measured file observations or model-derived visual diagnostics. They do not establish neural, psychological, memory, emotion, or causal behavioural outcomes without an appropriate empirical study.",
+                }
+                report_exports = export_all(report, os.path.join(workspace, "reports"))
+                report["report_exports"] = report_exports
+                report["visual_artifacts"].update({f"report_{kind}": path for kind, path in report_exports.items()})
+                write_json_report(report, report_exports["json"])
 
         artifact_file_ids, artifact_errors = _persist_artifacts(service, report, tenant_id)
         envelope = _result_envelope({**task, "analysis_id": analysis_id}, report, artifact_file_ids)
@@ -152,3 +200,5 @@ def process_modal_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
                 os.unlink(temp_path)
             except OSError:
                 pass
+        if workspace:
+            shutil.rmtree(workspace, ignore_errors=True)

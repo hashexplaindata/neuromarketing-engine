@@ -331,10 +331,10 @@ def analyze_single_image(
     }
 
 
-def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0) -> dict:
-    """Universal entrypoint for ANY static image or video asset."""
+def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, output_dir: Optional[str] = None) -> dict:
+    """Universal image/video entrypoint with an optional job-scoped output directory."""
     start_time = time.time()
-    output_dir = os.path.join(PROJECT_ROOT, "output", "analysis_results")
+    output_dir = output_dir or os.path.join(PROJECT_ROOT, "output", "analysis_results")
     os.makedirs(output_dir, exist_ok=True)
 
     job_id = f"job_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"

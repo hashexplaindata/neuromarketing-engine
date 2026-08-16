@@ -182,6 +182,11 @@ async def get_job_artifact(job_id: str, artifact_name: str, current_user: Authen
         "thermal_heatmap": ("thermal_heatmap", "image/png"),
         "focus_map": ("focus_map", "image/png"),
         "scanpath_map": ("scanpath_map", "image/png"),
+        "report_json": ("report_json", "application/json"),
+        "report_csv": ("report_csv", "text/csv"),
+        "report_xlsx": ("report_xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        "report_html": ("report_html", "text/html"),
+        "report_pdf": ("report_pdf", "application/pdf"),
     }
     selected = allowed.get(artifact_name)
     if selected is None:

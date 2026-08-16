@@ -22,6 +22,19 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:800
 const ACCESS_TOKEN = import.meta.env.VITE_ACCESS_TOKEN || '';
 const JOB_STORAGE_KEY = 'neuromarketingStudio.jobId';
 const LEGACY_JOB_STORAGE_KEY = 'signalStudio.jobId';
+const ACCEPTED_MEDIA = 'image/*,video/*,.pdf,.doc,.docx,.odt,.rtf,.txt,.html,.htm,.xls,.xlsx,.xlsm,.ods,.csv,.tsv,.json,.jsonl,.edf,.bdf,.fif,.set';
+
+function mediaTypeForFile(file: File): string {
+  const extension = file.name.toLowerCase().split('.').pop() || '';
+  if (file.type.startsWith('image/')) return 'IMAGE';
+  if (file.type.startsWith('video/')) return 'VIDEO';
+  if (extension === 'pdf') return 'PDF';
+  if (['doc', 'docx', 'odt', 'rtf', 'txt', 'html', 'htm'].includes(extension)) return 'DOCUMENT';
+  if (['xls', 'xlsx', 'xlsm', 'ods', 'csv', 'tsv'].includes(extension)) return 'SPREADSHEET';
+  if (['edf', 'bdf', 'fif', 'set', 'vhdr', 'eeg'].includes(extension)) return 'EEG';
+  if (['json', 'jsonl'].includes(extension)) return 'STRUCTURED';
+  return 'ASSET';
+}
 
 function parseMaybeJson(value: unknown): any {
   if (typeof value !== 'string') return value;
@@ -160,7 +173,7 @@ export const App = () => {
     setSelectedFile(file);
     setPreviewUrl((previous) => {
       if (previous) URL.revokeObjectURL(previous);
-      return URL.createObjectURL(file);
+      return file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
     });
     setPhase('UPLOADING');
 
@@ -169,12 +182,6 @@ export const App = () => {
       setPhase('FAILED');
       return;
     }
-    if (!file.type.startsWith('image/')) {
-      setError('The current predictive worker route accepts raster image assets. Video, PDF, presentation, spreadsheet, survey, and eye-tracking adapters must be enabled before submitting those formats.');
-      setPhase('FAILED');
-      return;
-    }
-
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       let binary = '';
@@ -183,7 +190,7 @@ export const App = () => {
       const response = await fetch(`${API_BASE_URL}/api/v1/analyze`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: imageBase64, filename: file.name, media_type: 'IMAGE' }),
+        body: JSON.stringify({ image_base64: imageBase64, filename: file.name, media_type: mediaTypeForFile(file) }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || `Analysis request failed (${response.status})`);
@@ -215,7 +222,7 @@ export const App = () => {
   const variantLabel = report?.winning_variant || metrics?.winning_variant || 'Winning variant';
   const predictedCtr = metrics?.ctr_forecast || report?.ctr_forecast;
 
-  const statusMessage = error || job?.message || (phase === 'EMPTY' ? 'Upload an image to begin a predictive creative diagnostic.' : '');
+  const statusMessage = error || job?.message || (phase === 'EMPTY' ? 'Upload an image, video, document, PDF, spreadsheet, survey, eye-tracking export, or supported structured asset to begin a diagnostic.' : '');
   const phaseLabel = phase === 'UPLOADING' ? 'Uploading asset' : phase === 'QUEUED' ? 'Queued for analysis' : phase === 'RUNNING' ? 'Running models' : phase === 'PARTIAL' ? 'Partial results available' : phase === 'COMPLETE' ? 'Analysis complete' : phase === 'FAILED' ? 'Analysis failed' : 'Ready';
 
   return (
@@ -226,8 +233,8 @@ export const App = () => {
           <span className="version-pill">PREDICTIVE DIAGNOSTICS</span>
         </div>
         <label className="btn-action btn-primary" style={{ margin: 0, padding: '8px 16px', fontSize: '0.85rem', cursor: 'pointer' }}>
-          <span>Upload image</span>
-          <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+          <span>Upload asset</span>
+          <input type="file" accept={ACCEPTED_MEDIA} onChange={handleFileUpload} style={{ display: 'none' }} />
         </label>
       </nav>
 
