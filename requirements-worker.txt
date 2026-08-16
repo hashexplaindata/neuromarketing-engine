@@ -22,6 +22,7 @@ google-genai>=0.1.0
 # Legacy compatibility path used only when the current SDK is unavailable.
 google-generativeai>=0.8.0
 # Worker/runtime-only dependencies used by the current inference path.
-deepgaze-pytorch>=1.2.1
+# The official 1.2.1 package is not published on PyPI; pin the upstream source commit.
+deepgaze_pytorch @ git+https://github.com/matthias-k/DeepGaze.git@bd753de144dfea195a445704cbc3f9b8a2714003
 redis>=5.0.0,<7
 PyJWT>=2.8.0,<3
