@@ -1,92 +1,113 @@
-# Neuromarketing Studio — Camber GPU Worker Setup
+# Neuromarketing Studio — Private Camber Job Setup
 
-This document describes the safe setup path for the private Camber GPU worker used by **Neuromarketing Studio**. The procedure deliberately separates local preparation, Camber resource creation, smoke testing, and production integration.
+This runbook deploys the Neuromarketing Studio GPU worker as a **private, headless Camber Job**. It does not create a Camber Science App. Science Apps are directory-facing interactive workloads; the Neuromarketing Studio worker is an internal asynchronous B2B processor that consumes a queue task, runs visual diagnostics, and persists tenant-scoped results.
 
-## Architecture
+## Production architecture
 
 ```text
 Neuromarketing Studio React client
         |
         v
-Heroku authenticated API
+Heroku authenticated API gateway
         |
         v
-Upstash queue and Appwrite job record
+Upstash Redis queue + Appwrite job record
         |
         v
-Camber GPU worker application
+Private Camber Job on an L4 GPU
         |
         v
-Appwrite result envelope and tenant-scoped visual artifacts
+Appwrite result envelope + tenant-scoped artifacts
 ```
 
-Heroku remains the lightweight API process. The Camber application owns GPU inference and must not be placed inside the Heroku web slug.
+The Heroku dyno remains lightweight. It receives authenticated requests, stores the input asset, records the canonical job, and enqueues work. The private Camber Job performs GPU inference. The Camber worker must never receive client credentials through a committed file, container layer, or public App definition.
 
-## Why a dedicated application is required
+## Verified Camber Job contract
 
-The existing Camber applications in the account are unrelated workloads or belong to other users. Neuromarketing Studio needs its own private application so that the command, container image, dependency set, GPU profile, and output contract are controlled by BIA.
-
-## Local preparation
-
-The repository contains the reviewable template:
-
-```text
-camber_app_definition.template.json
-```
-
-Before using it, replace the placeholder container image with an image that has actually been published and tested. The image must contain the repository source, `requirements-worker.txt`, pretrained model provisioning, and the `workers.camber_worker` entrypoint. Do not put API keys into the image or JSON definition.
-
-The intended initial resource is one L4 GPU using the smallest GPU-capable profile. The account output identified `gpu_xsmall` as one XSMALL node with one L4 GPU, 8 CPUs, and 32 GB RAM. Increase to `gpu_small` only after measuring memory requirements and approving the additional cost.
-
-## Camber-side creation
-
-Run these commands from the user’s authenticated WSL Ubuntu terminal only after confirming the container image and resource pricing:
+The installed Camber CLI reports the following job command contract:
 
 ```bash
-camber app create --file ~/neuromarketing-studio-app.json --output json
-```
-
-The command creates the application definition. It does not by itself prove that the worker image, Appwrite connectivity, or result contract works.
-
-After creation, record the returned app identifier privately and inspect it without exposing credentials:
-
-```bash
-camber app describe <APP_IDENTIFIER> --output json
-```
-
-## Smoke-test gate
-
-Do not run a real client asset first. Prepare a synthetic or public test asset in the Camber Stash and use a command that prints a deterministic success marker and writes a small result file. Confirm the exact job ID, status values, logs, and output path before connecting Signal Studio.
-
-The production worker smoke test is a separate approval step because `camber app run` allocates compute:
-
-```bash
-camber app run <APP_IDENTIFIER> \
-  --node-size XSMALL \
+camber job create \
+  --cmd '<command>' \
+  --engine <base|mpi|mesa|athena|nextflow|gromacs|lammps|openfoam> \
+  --gpu \
   --num-nodes 1 \
-  --with-gpu \
+  --path stash://<username>/<project>/ \
+  --size <xxsmall|xsmall|small|medium|large>
+```
+
+The `base` engine is the first candidate for a Python worker because Camber describes it as including PyTorch, pandas, matplotlib, MPI, and related scientific packages. The `mpi` engine is not assumed to contain the Neuromarketing Studio runtime merely because it is available. The selected engine must be validated by the smoke job.
+
+The command contract exposes no image argument. Therefore, the initial headless Job path must use a private Stash bundle and Camber’s available execution environment. The GHCR worker image remains a reproducible build artifact, but it is not assumed to be consumable by `camber job create` until Camber documents an image/runtime option for Jobs.
+
+## Secret-free Stash bundle
+
+The bundle must contain the minimum source required for the bounded smoke script and must exclude `.env`, API keys, model caches, generated output, frontend files, tests, and client assets. From the repository root in the authenticated WSL terminal, first verify the recursive-copy flags:
+
+```bash
+camber stash cp --help
+```
+
+Then upload a prepared bundle using the private Stash path returned by `camber login`:
+
+```bash
+camber stash cp -r \
+  --use-gitignore \
+  --exclude '.env' \
+  --exclude 'studio' \
+  --exclude 'tests' \
+  --exclude 'output' \
+  --exclude 'models' \
+  --exclude 'ephemeral_workspaces' \
+  . \
+  stash://<username>/neuromarketing-studio-smoke/
+```
+
+The bundle still needs a runtime configuration strategy for production Upstash and Appwrite access. Do not upload those secrets. For the first smoke, the script uses the local Appwrite fallback and a repository-owned image, so it does not require client credentials or a live queue.
+
+## Bounded smoke command
+
+The canonical worker daemon is a long-running queue consumer. Do not use `python -m workers.camber_worker` as the first smoke command because it is designed to wait for queue tasks. The repository includes a bounded script at `scripts/camber_headless_smoke.py`. It processes one repository-owned test JPEG through the real pipeline, uses the local Appwrite fallback, writes a result envelope to `/tmp/camber_smoke_result.json`, prints `NEUROMARKETING_STUDIO_CAMBER_SMOKE_OK`, and exits.
+
+Before launching compute, verify the private bundle contains the smoke script and test asset:
+
+```bash
+camber stash ls stash://<username>/neuromarketing-studio-smoke/
+camber stash test stash://<username>/neuromarketing-studio-smoke/scripts/camber_headless_smoke.py
+camber stash test stash://<username>/neuromarketing-studio-smoke/input_assets/user_test_thumbnail.jpg
+```
+
+The first execution should use the smallest confirmed GPU-capable size. The account’s observed resource examples identify `XSMALL` as the smallest L4 profile, while the CLI accepts the lowercase value `xsmall` for `--size`. Start with one node and `--gpu`; use `medium` only if the smoke logs demonstrate a memory requirement and the additional cost is approved.
+
+A first candidate command is:
+
+```bash
+camber job create \
+  --engine base \
+  --size xsmall \
+  --gpu \
+  --num-nodes 1 \
+  --path stash://<username>/neuromarketing-studio-smoke/ \
+  --cmd "cd /workspace/neuromarketing-studio-smoke && python3 scripts/camber_headless_smoke.py" \
   --output json
 ```
 
-The exact positional app-identifier syntax must be confirmed against the installed CLI because the current help output does not display it. Do not guess the syntax or run the command until confirmed.
+The exact Stash mount path inside the Camber runtime is not established by the CLI help. If `/workspace/neuromarketing-studio-smoke` is not the runtime path, the command must be adjusted using the path shown in the job logs; do not guess repeatedly or create duplicate GPU jobs.
 
-## Required evidence before integration
+## Job lifecycle evidence
 
-Capture the following non-secret values from the smoke job:
+The CLI help does not show whether `camber job get` and `camber job logs` take a positional job ID or resolve a selected job. After one approved submission, use the exact accepted syntax from the CLI and capture only non-secret evidence:
 
-| Evidence | Required value |
-|---|---|
-| Application identifier | Camber app ID/name |
-| Job identifier | Returned Camber job ID |
-| Submission response | JSON response with status and timestamps |
-| Status sequence | Exact queued, running, complete, and failed values |
-| Logs | Command start, model load, completion, and error output |
-| Output location | Stash path or result URL |
-| GPU resource | Actual node/GPU selected |
-| Runtime | Total duration and approximate memory usage |
+```bash
+camber job list --output json --page 1 --size 10
+camber job get --output json
+camber job logs
+```
+
+Record the job ID, status sequence, engine, size, GPU flag, timestamps, smoke marker, output path, and failure text if present. Do not paste API keys, environment variables, or private Stash URLs containing sensitive tokens.
 
 ## Production integration gate
 
-Only after the smoke job succeeds should the provider adapter be connected to the Upstash queue. The adapter must persist the Camber job ID, poll exact status values, apply timeouts and retry policy, upload result artifacts to Appwrite, and mark the canonical job `COMPLETE` or `FAILED` deterministically.
+A successful bounded smoke proves that the chosen Camber engine can start the worker bundle, access the test asset, load the required models, and produce a result envelope. It does not yet prove production dispatch. The provider adapter must later persist the Camber job ID, poll exact status values, enforce timeout and retry policy, retrieve the private result, upload artifacts to Appwrite, and reconcile the canonical job as `COMPLETE` or `FAILED`.
 
-The Camber API key must remain in environment configuration. It must never be committed to GitHub, embedded in a container image, copied into an app-definition file, or pasted into chat.
+The production queue worker remains a separate stage. It should be enabled only after private secret injection, Appwrite/Upstash connectivity, artifact retrieval, and failure-retry behavior have been validated. Camber Apps and the Science App Directory are explicitly prohibited for this worker.
