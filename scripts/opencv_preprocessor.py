@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OpenCV Preprocessor & Early Cortex Low-Level Stress Analyzer
+OpenCV Preprocessor & Low-Level Visual Complexity Analyzer
 Neuromarketing Studio Pipeline - Stage 01 Mechanical Worker
 """
 
@@ -100,8 +100,9 @@ def process_assets(input_path: str, output_dir: str):
             "visual_entropy_shannon": entropy,
             "michelson_contrast": contrast,
             "canny_edge_density": edge_density,
-            "early_cortex_stress_index": round((entropy / 8.0) * 0.4 + contrast * 0.3 + edge_density * 0.3, 4),
-            "status": "PASS" if entropy < 7.8 else "WARN_HIGH_COGNITIVE_CLUTTER"
+            "visual_complexity_proxy_index": round((entropy / 8.0) * 0.4 + contrast * 0.3 + edge_density * 0.3, 4),
+            "evidence_status": "MODEL_DERIVED_VISUAL_PROXY",
+            "status": "PASS" if entropy < 7.8 else "WARN_HIGH_VISUAL_COMPLEXITY"
         })
 
     manifest_path = os.path.join(output_dir, "manifest.json")
@@ -118,7 +119,7 @@ def process_assets(input_path: str, output_dir: str):
     print(f"[Stage 01] Low-level metrics written to: {metrics_path}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Stage 01 Asset Preprocessor & Stress Analyzer")
+    parser = argparse.ArgumentParser(description="Stage 01 Asset Preprocessor & Visual Complexity Analyzer")
     parser.add_argument("--input", required=True, help="Path to input asset or directory")
     parser.add_argument("--output", required=True, help="Path to stage output directory")
     args = parser.parse_args()

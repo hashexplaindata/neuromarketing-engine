@@ -5,37 +5,34 @@
 [![DeepGaze III](https://img.shields.io/badge/DeepGaze-IIE%20%26%20III-7928CA?style=flat)](https://saliency.tuebingen.ai/)
 [![XGBoost](https://img.shields.io/badge/XGBoost-CTR%20Regressor-FF6600?style=flat)](https://xgboost.readthedocs.io/)
 [![Appwrite](https://img.shields.io/badge/Appwrite-Cloud%20BaaS-FD366E?style=flat&logo=appwrite)](https://appwrite.io/)
-[![Upstash](https://img.shields.io/badge/Upstash-Redis%20REST-00E599?style=flat&logo=redis)](https://upstash.com/)
+[![Modal](https://img.shields.io/badge/Modal-L4%20GPU-111111?style=flat)](https://modal.com/)
 
-> A distributed, multi-tier computational neuroscience platform that transforms static images and videos into high-precision visual attention density maps, macro-saccadic eye tracking scanpaths, 3D biometric gaze rays, EEG-calibrated cognitive indices, and empirical Click-Through Rate (CTR) forecasts.
+> Neuromarketing Studio is a production-oriented creative-diagnostics platform that transforms marketer assets into visual-attention maps, model-derived scanpath and gaze/head-pose diagnostics, copy and layout analysis, controlled variant comparisons, and explicitly bounded CTR proxy forecasts.
 
 ---
 
 ## 🏛️ System Architecture
 
 ```
-[Figma Plugin / React UI] 
+[Figma Plugin / React Studio]
    │ (Direct Binary Upload)
    ▼
 [Appwrite Cloud Storage Bucket] ────► [Returns File ID]
    │                                         │
    ▼                                         ▼
-[FastAPI Gateway] ◄─── (Tiny JSON Payload: File ID)
+[Heroku FastAPI Gateway] ◄─── (Tiny JSON Payload: File ID)
    │
-   ▼ (LPUSH JSON Task)
-[Upstash Redis Queue]
-   │
-   ▼ (BRPOP Task)
-[Camber GPU Worker Cluster]
+   ▼ (Modal async function call)
+[Modal L4 GPU Function: process_job]
    ├── Phase 1: Dynamic Triage / Generative Compositor (VRAM Flushed)
    ├── Phase 2: DeepGaze IIE & III + Spatial IOR (sigma=80px)
-   ├── Phase 3: MediaPipe 3D Gaze Vectors & FACS Amygdala Arousal
+   ├── Phase 3: Geometric gaze/head-pose and gaze cueing
    ├── Phase 4: NLTK & ZuCo Cognitive Linguistics & Mobile Contrast
-   ├── Phase 5: Nature / NeuMa (ds004588) FAA & Theta Memory Indices
-   └── Phase 6: XGBoost Empirical Expected CTR Regressor
+   ├── Phase 5: Model-derived visual engagement and encoding-related proxies
+   └── Phase 6: XGBoost bounded model-derived CTR proxy
    │
    ▼ (Save Results & Realtime Event)
-[Appwrite DB & Realtime WebSockets] ────► [Figma / Web Studio Live Hydration]
+[Appwrite TablesDB, Storage & Realtime] ────► [Figma / Web Studio Live Hydration]
 ```
 
 ---
@@ -53,19 +50,20 @@ $$\text{IOR}(x, y) = \prod_{i=1}^{k-1} \left( 1 - \gamma \cdot \exp\left( -\frac
 ### 3. Biometric 3D Gaze Vectors & Gaze Cueing
 * Evaluates 3D Head Pose and directional eye gaze rays $(x, y, z)$ using OpenCV 3D Anthropometry (`solvePnP`).
 * Traces whether subject gaze rays intersect headline copy (**Directional Gaze Cueing**).
-* Calculates **Fusiform Face Area (FFA) Attentional Dispersion** to detect multi-face attentional cannibalism.
+* Calculates a **visual face-competition index** from detected person regions; this is not a claim about FFA activity or neural localization.
 
 ### 4. Psycholinguistics & Mobile Weber Contrast
 * Evaluates headline syntactic load using NLTK Flesch-Kincaid grade formulas.
 * Calibrates reading dwell velocity ($200\text{ms} + 45\text{ms}/\text{syllable}$) against the ZuCo eye-tracking cognitive reading corpus.
 * Simulates $1.5\text{ inch}$ mobile feed Weber luminance contrast ratio.
 
-### 5. EEG Motivation & Memory Indices (Nature / NeuMa ds004588)
-* **Frontal Alpha Asymmetry (FAA)**: Models Approach Motivation vs Withdrawal ($8\text{--}12\text{Hz}$).
-* **Frontal Theta Synchronization (SME)**: Models Subsequent Memory Encoding and brand recall ($4\text{--}8\text{Hz}$).
+### 5. Model-Derived Visual Proxies
+* Image-derived visual engagement and encoding-related proxies combine saliency, visual hierarchy, copy legibility, detected-person competition, and complexity metrics.
+* These outputs are labelled `MODEL_DERIVED_VISUAL_PROXY`; they do not measure EEG, FAA, theta, amygdala activity, emotion, memory, or observed behaviour.
 
-### 6. Empirical CTR Regressor (XGBoost)
-* Trained gradient boosting model mapping visual saliency feature vectors $\vec{X} = [\text{s-AUC}, \text{NSS}, \text{CLS}, \text{Hero Share}, \text{FAA}, \text{Theta}, \text{Gaze Cue}, \text{Weber Contrast}]$ into expected Click-Through Rate ($2.0\% \le \hat{y} \le 14.0\%$) and confidence intervals.
+### 6. Bounded CTR Proxy (XGBoost)
+* The regressor maps visual feature vectors $\vec{X} = [\text{s-AUC}, \text{NSS}, \text{CLS}, \text{Hero Share}, \text{Visual Engagement Proxy}, \text{Visual Encoding Proxy}, \text{Gaze Cue}, \text{Weber Contrast}]$ into a bounded model-derived CTR proxy ($2.0\% \le \hat{y} \le 14.0\%$).
+* The current baseline is synthetic calibration scaffolding and must not be described as validated empirical CTR until a documented holdout dataset and calibration study are added.
 
 ---
 
@@ -95,10 +93,10 @@ neuromarketing-engine/
 ├── scripts/
 │   ├── media_processor.py          # Universal static image & video frame extractor
 │   ├── saliency_engine.py          # DeepGaze IIE & III + Spatial Gaussian IOR
-│   ├── biometrics_engine.py        # 3D Gaze Vectors, FACS Emotion, FFA Dispersion
+│   ├── biometrics_engine.py        # Geometric gaze/head-pose and visual face-competition proxies
 │   ├── linguistics_engine.py       # ZuCo Reading Dwell Time, Flesch-Kincaid, Weber Contrast
-│   ├── neuromarketing_science.py   # NeuMa ds004588 calibrated FAA & Theta Memory
-│   ├── ctr_regressor.py            # XGBoost Empirical Expected CTR Regressor
+│   ├── neuromarketing_science.py   # Model-derived visual engagement/encoding proxies
+│   ├── ctr_regressor.py            # XGBoost bounded model-derived CTR proxy
 │   ├── n_factorial_engine.py       # 2^3 Combinatoric Matrix Generator + Multi-Factor ANOVA
 │   ├── ingest_benchmarks.py        # Zero-screenshot benchmark dataset streamer
 │   ├── report_synthesizer.py       # Strategic executive report synthesizer
@@ -112,12 +110,12 @@ neuromarketing-engine/
 │       ├── components/
 │       │   ├── CanvasViewer.tsx    # Interactive Canvas with Heatmap/Fog/Gaze overlays
 │       │   ├── ComparisonSlider.tsx # Split-Screen A/B Factorial Slider
-│       │   ├── MetricsScorecard.tsx # Real-time CTR Forecast & EEG KPIs
+│       │   ├── MetricsScorecard.tsx # Real-time CTR proxy and visual KPIs
 │       │   └── ScanpathPlayer.tsx  # 500ms Saccadic Sequence Playback Controller
 │       └── styles/
 │           └── main.css            # Glassmorphism Dark Mode Design System
 └── workers/
-    └── camber_worker.py            # Redis Queue Consumer & Camber GPU Daemon
+    └── modal_worker.py              # Modal GPU task worker
 ```
 
 ---
@@ -132,7 +130,7 @@ cd neuromarketing-engine
 
 # Copy environment variables template
 cp .env.example .env
-# Edit .env and supply your Appwrite and Upstash Redis credentials
+# Edit .env and supply your Appwrite, Modal, and Gemini credentials
 ```
 
 ### 2. Install Dependencies

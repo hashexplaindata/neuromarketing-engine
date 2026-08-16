@@ -112,7 +112,11 @@ def format_figma_delivery_payload(
         },
         "neuromarketing_metrics": {
             "domain_kpis": scorecard.get("domain_kpis", {}),
-            "early_cortex_stress": low_level_metrics,
+            "visual_complexity_proxy": {
+                "metrics": low_level_metrics,
+                "evidence_status": "MODEL_DERIVED_VISUAL_PROXY",
+                "not_measured": ["cortical stress", "neural activity", "psychological state"]
+            },
             "component_attention_dwell": scorecard.get("component_attention_distribution", []),
             "epistemic_confidence": confidence_audit.get("ensemble_agreement", {})
         },

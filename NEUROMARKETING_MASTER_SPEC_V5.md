@@ -1,11 +1,11 @@
 # NEUROMARKETING MASTER SPECIFICATION (V5.0 - PRODUCTION BULLETPROOF)
 
 ## 1. System Architecture Overview
-The Neuromarketing Engine is a distributed, multi-tier consumer neuroscience and visual attention analytics platform.
-It combines peer-reviewed spatial saliency networks, 3D biometric gaze tracking, psycholinguistics, and EEG-calibrated conversion modeling.
+Neuromarketing Studio is a distributed, multi-tier creative-diagnostics and visual-attention analytics platform.
+It combines pretrained spatial saliency models, geometric gaze/head-pose diagnostics, psycholinguistic and visual-complexity analysis, controlled creative comparisons, and explicitly bounded model-derived conversion proxies. It does not infer neural or psychological states from image-only input.
 
 ```
-[Figma Plugin / React UI] 
+[Figma Plugin / React Studio]
    │ (Direct Binary Upload)
    ▼
 [Appwrite Cloud Storage Bucket] ────► [Returns File ID]
@@ -13,19 +13,16 @@ It combines peer-reviewed spatial saliency networks, 3D biometric gaze tracking,
    ▼                                         ▼
 [FastAPI Gateway] ◄─── (Tiny JSON Payload: File ID)
    │
-   ▼ (LPUSH JSON Task)
-[Upstash Redis Queue]
-   │
-   ▼ (BRPOP Task)
-[Camber GPU Worker Cluster]
-   ├── Phase 1: Dynamic Triage / Generative Compositor (VRAM Flushed)
+   ▼ (Modal async function call)
+[Modal L4 GPU Worker: process_job]
+   ├── Phase 1: Dynamic Triage / Staged VRAM Lifecycle
    ├── Phase 2: DeepGaze IIE & III + Spatial IOR (sigma=80px)
-   ├── Phase 3: MediaPipe 3D Gaze Vectors & FACS Amygdala Arousal
-   ├── Phase 4: NLTK & ZuCo Cognitive Linguistics & Mobile Contrast
-   └── Phase 5: Nature / NeuMa (ds004588) FAA & Theta Memory Indices
+   ├── Phase 3: Geometric Gaze/Head-Pose & Gaze Cueing
+   ├── Phase 4: NLTK / Copy Analysis / Mobile Contrast
+   └── Phase 5: Model-Derived Visual Proxies & CTR Proxy
    │
    ▼ (Save Results & Realtime Event)
-[Appwrite DB & Realtime WebSockets] ────► [Figma / Web Studio Live Hydration]
+[Appwrite TablesDB, Storage & Realtime] ────► [Figma / Web Studio Live Hydration]
 ```
 
 ---
@@ -39,19 +36,18 @@ It combines peer-reviewed spatial saliency networks, 3D biometric gaze tracking,
    For fixation step $k \in \{1, \dots, N\}$ at coordinate $(x_k, y_k)$:
    $$\text{IOR}(x, y) = \prod_{i=1}^{k-1} \left( 1 - \gamma \cdot \exp\left( -\frac{(x - x_i)^2 + (y - y_i)^2}{2\sigma_{\text{IOR}}^2} \right) \right), \quad \sigma_{\text{IOR}} = 80\text{px}, \, \gamma = 0.85$$
 
-3. **Frontal Alpha Asymmetry (FAA Index)**:
-   $$\text{FAA} = \ln(\text{Alpha}_{\text{Right}}) - \ln(\text{Alpha}_{\text{Left}})$$
-   Calibrated from the **Nature / OpenNeuro ds004588 (NeuMa)** dataset to model consumer Approach Motivation vs Withdrawal.
+3. **Model-Derived Visual Engagement Proxy**:
+   A transparent weighted combination of visual saliency discrimination, focal-region share, copy legibility, visual expression contrast, and detected-person competition. The output is a model-derived visual proxy and is not an EEG or motivation measure.
 
-4. **Frontal Theta Memory Encoding Index (SME)**:
-   Models Subsequent Memory Effect and long-term brand recall potential from $4\text{–}8\text{Hz}$ synchronization.
+4. **Model-Derived Visual Encoding-Related Proxy**:
+   A bounded diagnostic based on predicted saliency statistics, visual hierarchy, legibility, and face-competition geometry. It is not a measure of memory encoding, recall, or frontal theta synchronization.
 
 ---
 
-## 3. Biometric Gaze & Facial Action Coding System (FACS)
+## 3. Geometric Gaze, Head Pose & Visual Face Competition
 * **3D Head Pose & Gaze Vector**: Evaluated via OpenCV 3D Anthropometric model (`solvePnP`) to compute $(x, y, z)$ ray direction.
 * **Directional Gaze Cueing**: Evaluates whether subjects' gaze rays intersect headline copy to channel viewer saccades.
-* **FFA Attentional Dispersion**: Measures attentional cannibalism and saccadic ping-pong across competing human faces.
+* **Visual face-competition index**: Summarizes detected-person geometry as a layout diagnostic; it does not measure FFA activity, neural localization, emotion, or attentional state.
 
 ---
 
@@ -69,7 +65,7 @@ Generates all 8 structural creative combinations:
 * **Factor B (Typography)**: Baseline Low-Contrast vs High-Luminance Viral Yellow (`#FFE600`)
 * **Factor C (Lighting & Contrast)**: Baseline Lighting vs High-Separation Silhouette
 
-Evaluated via One-Way / Two-Way ANOVA ($F$-statistic, $p$-value) and bootstrap Cohen's $d$ effect size.
+The predictive engine reports model-derived diagnostic intervals and an explicit `NO_EMPIRICAL_PARTICIPANT_INFERENCE` status. Separate empirical A/B and factorial analysis functions accept observed experimental-unit outcomes, require replicated cells, report effect sizes and bootstrap confidence intervals, apply Holm correction across terms, and preserve the boundary between prediction and inference.
 
 ---
 
@@ -79,10 +75,12 @@ Evaluated via One-Way / Two-Way ANOVA ($F$-statistic, $p$-value) and bootstrap C
   * Project ID: `neuromarketing-engine`
   * Database ID: `NeuromarketingDB`
   * Storage Bucket: `neuromarketing-assets`
-  * Collections: `experiments`, `variants`
-* **Upstash Redis REST Queue**:
-  * Queue Key: `queue:analysis_jobs`
-  * Job Status Keys: `job:<job_id>:status`
+  * Tables: `jobs`, `analysis_results`, `experiments`, `variants`, and tenant-scoped profile/settings tables.
+* **Modal GPU execution**:
+  * App: `neuromarketing-studio`
+  * Function: `process_job`
+  * GPU: NVIDIA L4
+  * Runtime Secret: `neuromarketing-studio-runtime`
 
 ---
 
@@ -100,8 +98,8 @@ Evaluated via One-Way / Two-Way ANOVA ($F$-statistic, $p$-value) and bootstrap C
   1. Client uploads binary asset **directly to Appwrite Cloud Storage** (`neuromarketing-assets`) via Appwrite Client SDK.
   2. Appwrite returns a lightweight unique `file_id`.
   3. Client dispatches a **micro-payload JSON** (`< 1KB`) containing `{ "file_id": "...", "experiment_id": "..." }` to the FastAPI gateway.
-  4. FastAPI pushes the JSON to Upstash Redis.
-  5. Camber GPU worker streams the file directly from Appwrite Storage.
+  4. FastAPI creates an Appwrite job row and submits the JSON payload asynchronously to Modal.
+  5. The Modal GPU worker streams the file directly from Appwrite Storage.
 * **Result**: Zero H12 request timeouts, zero gateway bandwidth bottlenecks.
 
 ### 8.2. GPU VRAM Exhaustion (Dynamic VRAM Triage Router)
@@ -114,6 +112,6 @@ Evaluated via One-Way / Two-Way ANOVA ($F$-statistic, $p$-value) and bootstrap C
 ### 8.3. Figma Sandbox "Zombie State" (Resilient State Hydration)
 * **Constraint**: User closing or refreshing the Figma plugin / browser window must **NEVER** lose in-flight analysis or trigger duplicate compute jobs.
 * **Architecture**:
-  1. **Boot Hydration**: On plugin mount (`useEffect`), query Appwrite `experiments` collection for any experiment with `created_by_user` matching the session with `status == "processing"` or `status == "completed"` created within the last 60 minutes.
+  1. **Boot Hydration**: On plugin mount (`useEffect`), query the Appwrite `experiments` table for any experiment with `created_by_user` matching the session with `status == "processing"` or `status == "completed"` created within the last 60 minutes.
   2. **Live Reconnection**: If an active job is found, immediately re-attach to the Appwrite Realtime WebSocket subscription for that `experiment_id` and transition UI into the Live Analytics Dashboard.
 * **Result**: Eliminates ghost jobs, prevents accidental duplicate GPU compute billing, and preserves designer workflow continuity.

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Biometrics Engine - Facial Gaze Vectors, FACS Emotion & FFA Attentional Dispersion
+Biometrics Engine - Facial Gaze Vectors & Visual Face-Competition Proxies
 Uses 3D Anthropometric Head Pose & Gaze Vector Geometry with solvePnP.
 
 Computes:
 1. 3D Eye Gaze Vectors (Yaw, Pitch, Roll & 3D Ray) for all detected human faces.
 2. Directional Gaze Cueing: Checks if subjects are looking at the headline, hero, or viewer.
-3. Facial Action Coding System (FACS) Emotion & Amygdala Shock/Arousal Index.
-4. Fusiform Face Area (FFA) Attentional Dispersion: Quantifies attentional cannibalism between multiple faces.
+3. Image-derived expression-intensity proxy; no FACS or emotion classification is claimed.
+4. Visual face-competition index based on detected person boxes; no FFA activity or neural localization is claimed.
 """
 
 import os
@@ -54,7 +54,7 @@ class BiometricsEngine:
         text_bboxes: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
         """
-        Extracts 3D Gaze Vectors, Emotion Arousal, and Gaze Redirection for all faces.
+        Extracts geometric head-pose/gaze vectors, gaze cueing, and image-derived visual proxies for detected person regions.
         """
         h, w = image_rgb.shape[:2]
         gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
@@ -72,7 +72,7 @@ class BiometricsEngine:
         # Sort left to right
         person_boxes = sorted(person_boxes, key=lambda b: b[1])
         face_count = len(person_boxes)
-        logger.info(f"Analyzing {face_count} human subjects for 3D Gaze Vectors & FACS Amygdala Arousal.")
+        logger.info(f"Analyzing {face_count} detected person regions for geometric gaze/head-pose and visual face-competition proxies.")
 
         focal_length = w
         cam_matrix = np.array([
@@ -164,15 +164,15 @@ class BiometricsEngine:
                         intersected_text_label = tb.get("label", "Headline")
                         break
 
-            # Facial Action Units & Amygdala Emotional Arousal Index (0-100)
+            # Image-derived expression-intensity proxy (not FACS, emotion, or amygdala activity).
             mouth_patch = face_patch[int(head_h * 0.65):int(head_h * 0.95), int(head_w * 0.25):int(head_w * 0.75)]
             mouth_contrast = float(np.std(mouth_patch)) if mouth_patch.size > 0 else 20.0
             
-            arousal_score = min(100.0, max(20.0, (mouth_contrast * 1.5) + (abs(pitch) * 0.8) + (abs(yaw) * 0.5)))
-            emotion_class = (
-                "Intense / High Arousal (Viral Shock Trigger)" if arousal_score > 60 else
-                "Engaged / Conversational" if arousal_score > 35 else
-                "Neutral / Calm"
+            visual_expression_proxy = min(100.0, max(0.0, (mouth_contrast * 1.5) + (abs(pitch) * 0.8) + (abs(yaw) * 0.5)))
+            visual_expression_label = (
+                "High visual expression contrast" if visual_expression_proxy > 60 else
+                "Moderate visual expression contrast" if visual_expression_proxy > 35 else
+                "Low visual expression contrast"
             )
 
             faces_data.append({
@@ -191,29 +191,41 @@ class BiometricsEngine:
                     "channels_into_headline": gaze_ray_intersects_text,
                     "cued_text_label": intersected_text_label
                 },
+                "visual_expression_proxy": {
+                    "score": round(visual_expression_proxy, 1),
+                    "classification": visual_expression_label,
+                    "evidence_status": "MODEL_DERIVED_VISUAL_PROXY",
+                    "not_measured": ["FACS action units", "emotion", "amygdala activity"]
+                },
                 "emotion_biometrics": {
-                    "amygdala_arousal_score": round(arousal_score, 1),
-                    "classification": emotion_class
+                    "score": None,
+                    "classification": "NOT_MEASURED_FROM_IMAGE_ONLY_INPUT",
+                    "evidence_status": "NOT_MEASURED",
+                    "deprecated_alias": True
                 }
             })
 
-        # Fusiform Face Area (FFA) Attentional Dispersion
+        # Visual face-competition proxy based only on detected person regions.
         if face_count == 1:
             ffa_dispersion = 12.0
-            dispersion_label = "Optimal Solo Focus (Zero Attentional Cannibalism)"
+            dispersion_label = "Single detected person region"
         elif face_count == 2:
             ffa_dispersion = 45.0
-            dispersion_label = "Moderate Duet Split"
+            dispersion_label = "Two detected person regions; possible visual competition"
         else:
             ffa_dispersion = min(95.0, 30.0 * face_count)
-            dispersion_label = f"High Multi-Face Cannibalism ({face_count} competing FFA nodes)"
+            dispersion_label = f"Multiple detected person regions ({face_count}); visual competition proxy elevated"
 
-        avg_arousal = float(np.mean([f["emotion_biometrics"]["amygdala_arousal_score"] for f in faces_data])) if faces_data else 0.0
+        avg_visual_expression = float(np.mean([f["visual_expression_proxy"]["score"] for f in faces_data])) if faces_data else 0.0
 
         return {
             "face_count": face_count,
             "faces": faces_data,
-            "ffa_attentional_dispersion_index": round(ffa_dispersion, 1),
-            "ffa_dispersion_diagnosis": dispersion_label,
-            "average_amygdala_arousal": round(avg_arousal, 1)
+            "face_competition_index": round(ffa_dispersion, 1),
+            "face_competition_diagnosis": dispersion_label,
+            "average_visual_expression_proxy": round(avg_visual_expression, 1),
+            "ffa_attentional_dispersion_index": None,
+            "ffa_dispersion_diagnosis": "NOT_MEASURED; use face_competition_index for the visual proxy",
+            "average_amygdala_arousal": None,
+            "evidence_status": "MODEL_DERIVED_VISUAL_GEOMETRY_ONLY"
         }

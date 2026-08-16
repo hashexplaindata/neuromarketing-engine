@@ -33,10 +33,12 @@ def _strip_json_fence(raw_text: str) -> str:
 def _build_prompt(experiment_id: str, metrics_data: Dict[str, Any], branding_config: Optional[Dict[str, Any]]) -> str:
     return f"""
 You are a senior visual-attention and behavioural-science report editor. Interpret
-only the supplied computational results for experiment '{experiment_id}'. Do not
-invent human participants, EEG, eye-tracking observations, memory, emotion,
-clicks, conversions, or statistical significance that are not present in the
-input.
+only the supplied computational results for experiment '{experiment_id}'. Treat
+image-derived engagement, encoding-related, face-competition, and conversion-readiness
+scores as model-derived visual proxies. Do not invent human participants, EEG,
+eye-tracking observations, frontal alpha asymmetry, frontal theta, memory, emotion,
+amygdala activity, clicks, conversions, or statistical significance that are not
+present in the input.
 
 EXPERIMENT RESULTS:
 {json.dumps(metrics_data, indent=2, default=str)}
@@ -50,7 +52,7 @@ Write a client-ready JSON object with exactly these keys:
 - brand_salience_rating: integer 1-100 only if the input supports it; otherwise null.
 - actionable_recommendations: an array of 3-5 specific design or testing recommendations.
 - winner_variant_id: only use a supplied variant winner; otherwise null.
-- evidence_status: one of MEASURED, MODEL_PREDICTED, DERIVED_PROXY, or MIXED.
+- evidence_status: one of MEASURED, MODEL_PREDICTED, DERIVED_PROXY, or MIXED. Use DERIVED_PROXY or MODEL_PREDICTED for image-only outputs.
 - limitations: an array of explicit limitations and alternative explanations.
 
 Recommendations must be framed as hypotheses or design actions to test. Return
@@ -141,7 +143,7 @@ def synthesize_executive_report(
         "winner_variant_id": top_variant,
         "evidence_status": "MODEL_PREDICTED",
         "limitations": [
-            "No participant, EEG, eye-tracking, click, conversion, or recall outcome was supplied to this synthesis.",
+            "No participant, EEG, eye-tracking, click, conversion, recall, emotion, amygdala, FAA, or theta outcome was supplied to this synthesis.",
             "The fallback narrative was generated deterministically because the Gemini provider was unavailable.",
         ],
         "synthesis_engine": "Deterministic validated fallback",

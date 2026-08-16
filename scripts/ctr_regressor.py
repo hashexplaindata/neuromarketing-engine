@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 Empirical CTR & Conversion Calibration Engine (XGBoost Regressor)
-Converts abstract neuro-saliency metrics into expected Click-Through Rate (CTR) forecasts:
+Converts visual-attention and layout metrics into a model-derived CTR forecast; it does not measure neural signals or guarantee observed conversion:
 2.0% <= Estimated CTR <= 14.0%
 
 Feature Vector:
-X = [s-AUC, NSS, Cognitive Load, Hero Attention %, FAA Approach, Theta Memory, Gaze Cue Alignment, Weber Contrast]
+X = [s-AUC, NSS, Cognitive Load, Hero Attention %, Visual Engagement Proxy, Visual Encoding Proxy, Gaze Cue Alignment, Weber Contrast]
 """
 
 import os
@@ -38,7 +38,7 @@ class CTRRegressor:
     def _train_calibrated_baseline_model(self) -> xgb.XGBRegressor:
         """
         Calibrated baseline trained on marketing engagement distribution tensors.
-        Maps neuro-visual feature vectors to empirical YouTube/Ad CTR rates (2.0% - 14.0%).
+        Maps synthetic calibration feature vectors to a bounded model-derived CTR proxy (2.0% - 14.0%); this is not a validated industry benchmark without a documented holdout dataset.
         """
         np.random.seed(42)
         n_samples = 1500
@@ -48,20 +48,20 @@ class CTRRegressor:
         nss = np.random.uniform(1.0, 16.0, n_samples)
         cls = np.random.uniform(20.0, 85.0, n_samples)
         hero_att = np.random.uniform(10.0, 80.0, n_samples)
-        faa = np.random.uniform(-1.0, 1.0, n_samples)
-        theta_mem = np.random.uniform(20.0, 95.0, n_samples)
+        visual_engagement = np.random.uniform(-1.0, 1.0, n_samples)
+        visual_encoding = np.random.uniform(20.0, 95.0, n_samples)
         gaze_align = np.random.choice([0.0, 1.0], size=n_samples, p=[0.65, 0.35])
         weber = np.random.uniform(0.5, 6.0, n_samples)
 
-        X_train = np.column_stack([s_auc, nss, cls, hero_att, faa, theta_mem, gaze_align, weber])
+        X_train = np.column_stack([s_auc, nss, cls, hero_att, visual_engagement, visual_encoding, gaze_align, weber])
 
         # Ground truth conversion formula (log-odds transfer with noise)
         y_latent = (
             (s_auc * 2.2) +
             (np.log1p(nss) * 1.5) +
             (hero_att * 0.04) +
-            (faa * 1.8) +
-            (theta_mem * 0.035) +
+            (visual_engagement * 1.8) +
+            (visual_encoding * 0.035) +
             (gaze_align * 1.2) +
             (np.clip(weber, 0, 4.0) * 0.4) -
             (np.maximum(0, cls - 45.0) * 0.05)
@@ -90,8 +90,8 @@ class CTRRegressor:
         nss: float,
         cognitive_load_index: float,
         hero_attention_share: float,
-        faa_score: float,
-        theta_memory_pct: float,
+        visual_engagement_proxy: float,
+        visual_encoding_proxy_pct: float,
         gaze_cued_headline: bool,
         weber_contrast_ratio: float
     ) -> Dict[str, Any]:
@@ -103,8 +103,8 @@ class CTRRegressor:
             float(nss),
             float(cognitive_load_index),
             float(hero_attention_share),
-            float(faa_score),
-            float(theta_memory_pct),
+            float(visual_engagement_proxy),
+            float(visual_encoding_proxy_pct),
             1.0 if gaze_cued_headline else 0.0,
             float(weber_contrast_ratio)
         ]], dtype=np.float32)
@@ -127,7 +127,7 @@ class CTRRegressor:
             "feature_contributions": {
                 "s_auc_pull": round(min(1.0, s_auc) * 25, 1),
                 "hero_attention_share_pull": round(min(1.0, hero_attention_share / 50.0) * 20, 1),
-                "faa_approach_pull": round(max(0.0, faa_score + 1.0) / 2.0 * 20, 1),
+                "visual_engagement_proxy_pull": round(max(0.0, visual_engagement_proxy + 1.0) / 2.0 * 20, 1),
                 "mobile_weber_contrast_pull": round(min(1.0, weber_contrast_ratio / 4.0) * 15, 1),
                 "gaze_cueing_boost": "+1.2%" if gaze_cued_headline else "0.0%"
             }

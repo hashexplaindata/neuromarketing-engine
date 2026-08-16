@@ -25,7 +25,6 @@ if hasattr(sys.stdout, 'reconfigure'):
 import numpy as np
 import cv2
 from PIL import Image, ImageDraw
-from scipy.stats import f_oneway
 
 logging.basicConfig(
     level=logging.INFO,
@@ -170,27 +169,37 @@ def run_nfactorial_experiment(
             variant_path = os.path.join(output_dir, f"{name.lower()}.png")
             cv2.imwrite(variant_path, cv2.cvtColor(variant_img, cv2.COLOR_RGB2BGR))
 
-    # Bootstrap ANOVA across all 8 variants
+    # Bootstrap diagnostic resampling estimates uncertainty of the model-derived
+    # saliency metric. It is not a participant-level ANOVA or causal test.
     bootstrap_nss = {}
+    rng = np.random.default_rng(42)
     for name, res in results.items():
         prob = res['saliency_map']
         samples = []
         flat_prob = prob.flatten().astype(np.float64)
         flat_prob = flat_prob / flat_prob.sum()
         for _ in range(150):
-            indices = np.random.choice(prob.size, size=50, p=flat_prob)
+            indices = rng.choice(prob.size, size=50, p=flat_prob)
             ys, xs = np.unravel_index(indices, prob.shape)
             fix_pts = np.column_stack([ys, xs])
             samples.append(compute_nss(prob, fix_pts))
         bootstrap_nss[name] = samples
 
-    group_arrays = list(bootstrap_nss.values())
-    f_stat, p_value = f_oneway(*group_arrays)
+    diagnostic_intervals = {
+        name: {
+            "mean_nss": round(float(np.mean(samples)), 6),
+            "confidence_interval_95": [
+                round(float(np.percentile(samples, 2.5)), 6),
+                round(float(np.percentile(samples, 97.5)), 6),
+            ],
+        }
+        for name, samples in bootstrap_nss.items()
+    }
 
     winner_name = max(results, key=lambda k: (results[k]['hero_attention_share'] * 0.6 + results[k]['nss'] * 0.4))
     baseline_name = "V_Panel_BronzeText_BaseLight"
     
-    baseline_samples = np.array(bootstrap_nss.get(baseline_name, group_arrays[0]))
+    baseline_samples = np.array(bootstrap_nss.get(baseline_name, next(iter(bootstrap_nss.values()))))
     winner_samples = np.array(bootstrap_nss[winner_name])
 
     n1, n2 = len(baseline_samples), len(winner_samples)
@@ -227,13 +236,18 @@ def run_nfactorial_experiment(
         },
         'variant_results': serializable_results,
         'anova': {
-            'f_statistic': round(float(f_stat), 3),
-            'p_value': round(float(p_value), 6),
-            'significant': bool(p_value < 0.05),
-            'bootstrap_samples_per_variant': 150
+            'analysis_scope': 'MODEL_DERIVED_DIAGNOSTIC_ONLY',
+            'f_statistic': None,
+            'p_value': None,
+            'significant': None,
+            'bootstrap_samples_per_variant': 150,
+            'variant_diagnostics': diagnostic_intervals,
+            'interpretation': 'These intervals quantify resampling variability of model-derived saliency metrics. They are not participant-level confidence intervals, inferential ANOVA, or causal evidence.'
         },
         'winner': winner_name,
         'baseline_variant': baseline_name,
         'cohens_d': round(float(cohens_d), 3),
-        'effect_size': effect_size
+        'cohens_d_scope': 'MODEL_DERIVED_DIAGNOSTIC_ONLY',
+        'effect_size': effect_size,
+        'inference_status': 'NO_EMPIRICAL_PARTICIPANT_INFERENCE'
     }

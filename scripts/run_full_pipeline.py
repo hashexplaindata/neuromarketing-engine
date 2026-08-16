@@ -253,7 +253,7 @@ def analyze_single_image(
         d['fixation_share_pct'] = round(share, 1)
         d['ttff_ms'] = ttff
 
-    # Biometrics (MediaPipe 3D Gaze + FACS)
+    # Geometric gaze/head-pose and image-derived visual proxies; no FACS or emotion claim.
     biometrics = biometrics_eng.analyze_faces(image_rgb, detected_persons=person_blocks, text_bboxes=text_blocks)
 
     # Linguistics (NLTK / ZuCo)
@@ -262,7 +262,7 @@ def analyze_single_image(
     # Metrics
     metrics = compute_all_metrics(saliency_map, scanpath, saliency_eng.centerbias_template, image_rgb)
 
-    # Neuromarketing Conversion & EEG Indices (NeuMa ds004588)
+    # Visual engagement, encoding-related, and conversion-readiness proxies.
     hero_share = max([d.get("fixation_share_pct", 0) for d in person_blocks] or [40.0])
     neuro_indices = neuro_eng.compute_neuro_indices(
         s_auc=metrics["s_auc"],
@@ -280,8 +280,8 @@ def analyze_single_image(
         nss=metrics["nss"],
         cognitive_load_index=metrics["cognitive_load"]["cognitive_load_index"],
         hero_attention_share=hero_share,
-        faa_score=neuro_indices["frontal_alpha_asymmetry_faa"]["score"],
-        theta_memory_pct=neuro_indices["frontal_theta_memory_encoding"]["score_pct"],
+        visual_engagement_proxy=neuro_indices["visual_approach_proxy"]["score"],
+        visual_encoding_proxy_pct=neuro_indices["visual_encoding_proxy"]["score_pct"],
         gaze_cued_headline=has_gaze_cue,
         weber_contrast_ratio=linguistics["mobile_weber_contrast_ratio"]
     )
@@ -366,13 +366,13 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0) -> di
             'nss_score': analysis_res["metrics"]['nss'],
             'cognitive_load_score': analysis_res["metrics"]['cognitive_load']['cognitive_load_index'],
             'winning_variant': analysis_res["n_factorial"]['winner'] if analysis_res["n_factorial"] else 'Baseline',
-            'cohens_d_lift': analysis_res["n_factorial"]['cohens_d'] if analysis_res["n_factorial"] else 0.0,
-            'faa_approach_score': analysis_res["neuromarketing_indices"]['frontal_alpha_asymmetry_faa']['score'],
-            'memory_encoding_score': analysis_res["neuromarketing_indices"]['frontal_theta_memory_encoding']['score_pct'],
+            'model_derived_cohens_d': analysis_res["n_factorial"]['cohens_d'] if analysis_res["n_factorial"] else 0.0,
+            'visual_engagement_proxy_score': analysis_res["neuromarketing_indices"]['visual_approach_proxy']['score'],
+            'visual_encoding_proxy_score': analysis_res["neuromarketing_indices"]['visual_encoding_proxy']['score_pct'],
             'predicted_ctr': analysis_res["ctr_forecast"]["predicted_ctr_pct"],
             'viral_ctr_grade': analysis_res["neuromarketing_indices"]['viral_ctr_potential']['grade'],
             'mobile_legibility': analysis_res["linguistics"]['mobile_legibility_score'],
-            'ffa_dispersion': analysis_res["biometrics"]['ffa_attentional_dispersion_index'],
+            'face_competition_index': analysis_res["biometrics"]['face_competition_index'],
             'detections': [{k: v for k, v in d.items() if k != 'saliency_map'} for d in analysis_res["detections"]],
             'scanpath_sequence': analysis_res["scanpath"]
         }
@@ -416,7 +416,7 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0) -> di
                 "frame_index": f["frame_index"],
                 "viral_ctr_score": f_res["neuromarketing_indices"]["viral_ctr_potential"]["composite_score"],
                 "predicted_ctr_pct": f_res["ctr_forecast"]["predicted_ctr_pct"],
-                "faa_approach_score": f_res["neuromarketing_indices"]["frontal_alpha_asymmetry_faa"]["score"],
+                "visual_engagement_proxy_score": f_res["neuromarketing_indices"]["visual_approach_proxy"]["score"],
                 "cognitive_load": f_res["metrics"]["cognitive_load"]["cognitive_load_index"],
                 "face_count": f_res["biometrics"]["face_count"]
             })
