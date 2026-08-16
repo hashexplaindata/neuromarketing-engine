@@ -1,4 +1,4 @@
-# Heroku web dyno is the lightweight authenticated API; Camber owns GPU inference.
+# Heroku web dyno is the lightweight authenticated API; Modal owns GPU inference.
 studio/
 tests/
 output/

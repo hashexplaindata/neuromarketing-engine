@@ -1,55 +1,48 @@
 version: "3.8"
 
+# Local development only. Production uses Heroku for the API, Appwrite for
+# durable tenant-scoped storage, and Modal for GPU execution.
 services:
-  # 1. FastAPI Gateway & WebSocket Server
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: icm-api-gateway
+    container_name: neuromarketing-studio-api
     restart: unless-stopped
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - ENVIRONMENT=production
-      - DEBUG=false
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - EPHEMERAL_ROOT=/tmp/neuromarketing
-      - USE_S3_STORAGE=false
-      - S3_BUCKET=neuromarketing-engine-artifacts
-      - S3_ENDPOINT_URL=http://minio:9000
-      - JWT_SECRET_KEY=icm-super-secure-production-jwt-secret-key-2026
-      - METERING_ENABLED=true
+      ENVIRONMENT: development
+      DEBUG: "false"
+      GPU_PROVIDER: modal
+      MODAL_APP_NAME: neuromarketing-studio
+      MODAL_FUNCTION_NAME: process_job
+      EPHEMERAL_ROOT: /tmp/neuromarketing
     volumes:
       - ephemeral_data:/tmp/neuromarketing
-    depends_on:
-      - redis
-    networks:
-      - icm-network
 
-  # 2. Celery GPU Inference Worker with NVIDIA Container Toolkit
+  # Optional local GPU diagnostics. Normal development submits inference to
+  # Modal and does not need this service. Start it with:
+  # docker compose --profile local-gpu up worker
   worker:
+    profiles: ["local-gpu"]
     build:
       context: .
       dockerfile: Dockerfile.worker
-    container_name: icm-gpu-worker
-    restart: unless-stopped
+    container_name: neuromarketing-studio-local-worker
+    restart: "no"
+    env_file:
+      - .env
     environment:
-      - ENVIRONMENT=production
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - EPHEMERAL_ROOT=/tmp/neuromarketing
-      - USE_S3_STORAGE=false
-      - S3_BUCKET=neuromarketing-engine-artifacts
-      - S3_ENDPOINT_URL=http://minio:9000
-      - MODELS_DIR=/app/models
-      - ONNX_EXECUTION_PROVIDER=CUDAExecutionProvider
+      ENVIRONMENT: development
+      EPHEMERAL_ROOT: /tmp/neuromarketing
+      MODELS_DIR: /app/models
+      ONNX_EXECUTION_PROVIDER: CUDAExecutionProvider
     volumes:
       - ephemeral_data:/tmp/neuromarketing
-      - ./models:/app/models
+      - model_cache:/app/models
     deploy:
       resources:
         reservations:
@@ -57,61 +50,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    depends_on:
-      - redis
-    networks:
-      - icm-network
-
-  # 3. Redis Task Broker & Pub/Sub Progress Streamer
-  redis:
-    image: redis:7.2-alpine
-    container_name: icm-redis-broker
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes"]
-    networks:
-      - icm-network
-
-  # 4. Celery Real-time Task Monitoring Dashboard (Flower)
-  flower:
-    image: mher/flower:latest
-    container_name: icm-flower-dashboard
-    restart: unless-stopped
-    ports:
-      - "5555:5555"
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - FLOWER_PORT=5555
-    depends_on:
-      - redis
-    networks:
-      - icm-network
-
-  # 5. Local S3 Object Storage (MinIO)
-  minio:
-    image: minio/minio:RELEASE.2023-11-20T22-40-07Z
-    container_name: icm-minio-s3
-    restart: unless-stopped
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    networks:
-      - icm-network
 
 volumes:
-  redis_data:
   ephemeral_data:
-  minio_data:
-
-networks:
-  icm-network:
-    driver: bridge
+  model_cache:

@@ -43,7 +43,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 COPY requirements-worker.txt .
 RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir -r requirements-worker.txt && \
-    pip3 install --no-cache-dir onnxruntime-gpu celery redis
+    pip3 install --no-cache-dir onnxruntime-gpu
 
 # Copy source code
 COPY . /app/

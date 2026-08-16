@@ -1,12 +1,12 @@
-name: Build Neuromarketing Studio Camber Worker
+name: Build Neuromarketing Studio Modal Worker Image
 
 on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Container tag to publish'
+        description: 'Container tag to publish for the Modal worker image'
         required: true
-        default: 'camber-worker'
+        default: 'modal-worker'
         type: string
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/neuromarketing-engine:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push worker image
+      - name: Build and push Modal worker image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -41,4 +41,4 @@ jobs:
           tags: ${{ steps.image.outputs.name }}
 
       - name: Print image reference
-        run: echo "Published ${{ steps.image.outputs.name }}"
+        run: echo "Published ${{ steps.image.outputs.name }} for Modal Image.from_dockerfile()"
