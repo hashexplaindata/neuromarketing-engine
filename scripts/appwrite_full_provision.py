@@ -24,7 +24,6 @@ logger = logging.getLogger("appwrite.full_provision")
 
 try:
     from appwrite.client import Client
-    from appwrite.services.databases import Databases
     from appwrite.services.storage import Storage
     from appwrite.services.teams import Teams
     from appwrite.services.users import Users
@@ -147,7 +146,7 @@ def provision_all_appwrite_services():
             "name": "Executive Scorecard Notifier",
             "runtime": "python-3.12",
             "events": [
-                f"databases.{database_id}.collections.experiments.documents.*.update"
+                f"tablesdb.*.tables.experiments.rows.*.update"
             ],
             "timeout": 30
         }
@@ -183,8 +182,8 @@ def provision_all_appwrite_services():
     # 4. REALTIME & MESSAGING TOPICS
     logger.info("[4/4] Verifying Realtime Channels & Messaging Blueprint...")
     logger.info(f"✓ Realtime Channels Active:")
-    logger.info(f"    • databases.{database_id}.collections.experiments.documents")
-    logger.info(f"    • databases.{database_id}.collections.variants.documents")
+    logger.info(f"    • tablesdb.{database_id}.tables.experiments.rows")
+    logger.info(f"    • tablesdb.{database_id}.tables.variants.rows")
     logger.info(f"    • files.{bucket_id}")
     logger.info(f"✓ Frontend/Figma Plugin connects via: {endpoint.replace('http', 'ws')}/realtime")
 

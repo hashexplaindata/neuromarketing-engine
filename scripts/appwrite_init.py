@@ -25,7 +25,7 @@ logger = logging.getLogger("appwrite.schema_init")
 
 try:
     from appwrite.client import Client
-    from appwrite.services.databases import Databases
+    from appwrite.services.tables_db import TablesDB
     from appwrite.services.storage import Storage
     from appwrite.permission import Permission
     from appwrite.role import Role
@@ -64,14 +64,14 @@ COLLECTIONS_SPEC = [
     {
         "id": "user_profiles",
         "name": "User Profiles",
-        "document_security": True,
+        "row_security": True,
         "permissions": [
             Permission.read(Role.users()),
             Permission.create(Role.users()),
             Permission.update(Role.users()),
             Permission.delete(Role.users())
         ],
-        "attributes": [
+        "columns": [
             {"type": "string", "key": "user_id", "size": 255, "required": True},
             {"type": "string", "key": "default_module", "size": 64, "required": False, "default": "UI/UX"},
             {"type": "string", "key": "ui_theme", "size": 32, "required": False, "default": "dark"}
@@ -80,13 +80,13 @@ COLLECTIONS_SPEC = [
     {
         "id": "org_settings",
         "name": "Organization Settings",
-        "document_security": True,
+        "row_security": True,
         "permissions": [
             Permission.read(Role.users()),
             Permission.create(Role.users()),
             Permission.update(Role.users())
         ],
-        "attributes": [
+        "columns": [
             {"type": "string", "key": "team_id", "size": 255, "required": True},
             {"type": "string", "key": "custom_domain_boosts", "size": 65535, "required": False},
             {"type": "string", "key": "report_branding", "size": 65535, "required": False},
@@ -96,14 +96,14 @@ COLLECTIONS_SPEC = [
     {
         "id": "experiments",
         "name": "Experiments",
-        "document_security": True,
+        "row_security": True,
         "permissions": [
             Permission.read(Role.users()),
             Permission.create(Role.users()),
             Permission.update(Role.users()),
             Permission.delete(Role.users())
         ],
-        "attributes": [
+        "columns": [
             {"type": "string", "key": "experiment_id", "size": 255, "required": True},
             {"type": "string", "key": "team_id", "size": 255, "required": True},
             {"type": "string", "key": "created_by_user", "size": 255, "required": True},
@@ -114,14 +114,14 @@ COLLECTIONS_SPEC = [
     {
         "id": "variants",
         "name": "Variants",
-        "document_security": True,
+        "row_security": True,
         "permissions": [
             Permission.read(Role.users()),
             Permission.create(Role.users()),
             Permission.update(Role.users()),
             Permission.delete(Role.users())
         ],
-        "attributes": [
+        "columns": [
             {"type": "string", "key": "variant_id", "size": 255, "required": True},
             {"type": "string", "key": "experiment_id", "size": 255, "required": True},
             {"type": "string", "key": "image_bucket_id", "size": 255, "required": True},
@@ -151,18 +151,18 @@ def init_appwrite_schema():
     if api_key:
         client.set_key(api_key)
 
-    databases = Databases(client)
+    tables_db = TablesDB(client)
     storage = Storage(client)
 
     # 1. Initialize / Verify Database
     try:
-        db = retry_api_call(lambda: databases.get(DATABASE_ID))
+        db = retry_api_call(lambda: tables_db.get(DATABASE_ID))
         db_name = get_prop(db, "name", DATABASE_NAME)
         logger.info(f"✓ [Database] Connected to existing Database: '{db_name}' (ID: {DATABASE_ID})")
     except AppwriteException as e:
         if e.code == 404:
             logger.info(f"[Database] Creating database '{DATABASE_ID}' ({DATABASE_NAME})...")
-            db = retry_api_call(lambda: databases.create(database_id=DATABASE_ID, name=DATABASE_NAME))
+            db = retry_api_call(lambda: tables_db.create(database_id=DATABASE_ID, name=DATABASE_NAME))
             logger.info(f"✓ [Database] Successfully created database '{DATABASE_NAME}' (ID: {DATABASE_ID})")
         else:
             logger.error(f"[Database] Appwrite error: {e}")
@@ -172,53 +172,53 @@ def init_appwrite_schema():
     for col_spec in COLLECTIONS_SPEC:
         col_id = col_spec["id"]
         col_name = col_spec["name"]
-        doc_sec = col_spec["document_security"]
+        row_sec = col_spec["row_security"]
         perms = col_spec["permissions"]
 
         try:
-            retry_api_call(lambda: databases.get_collection(DATABASE_ID, col_id))
-            logger.info(f"✓ [Collection] Found existing collection: '{col_id}' ({col_name})")
+            retry_api_call(lambda: tables_db.get_table(DATABASE_ID, col_id))
+            logger.info(f"✓ [Table] Found existing table: '{col_id}' ({col_name})")
         except AppwriteException as e:
             if e.code == 404:
-                logger.info(f"[Collection] Creating collection '{col_id}' ({col_name}) with DLS={doc_sec}...")
-                retry_api_call(lambda: databases.create_collection(
+                logger.info(f"[Table] Creating table '{col_id}' ({col_name}) with row security={row_sec}...")
+                retry_api_call(lambda: tables_db.create_table(
                     database_id=DATABASE_ID,
-                    collection_id=col_id,
+                    table_id=col_id,
                     name=col_name,
                     permissions=perms,
-                    document_security=doc_sec
+                    row_security=row_sec
                 ))
-                logger.info(f"✓ [Collection] Created collection '{col_id}'")
+                logger.info(f"✓ [Table] Created table '{col_id}'")
             else:
                 logger.error(f"[Collection] Error on '{col_id}': {e}")
                 continue
 
-        # Attributes
-        for attr in col_spec["attributes"]:
+        # Columns
+        for attr in col_spec["columns"]:
             attr_key = attr["key"]
             attr_type = attr["type"]
             attr_req = attr["required"]
 
             try:
-                retry_api_call(lambda: databases.get_attribute(DATABASE_ID, col_id, attr_key))
-                logger.info(f"  └─ ✓ [Attribute] '{attr_key}' already exists in '{col_id}'")
+                retry_api_call(lambda: tables_db.get_column(DATABASE_ID, col_id, attr_key))
+                logger.info(f"  └─ ✓ [Column] '{attr_key}' already exists in '{col_id}'")
             except AppwriteException as e:
                 if e.code == 404:
-                    logger.info(f"  └─ [+] [Attribute] Creating {attr_type} attribute '{attr_key}' in '{col_id}'...")
+                    logger.info(f"  └─ [+] [Column] Creating {attr_type} column '{attr_key}' in '{col_id}'...")
                     try:
                         if attr_type == "string":
-                            retry_api_call(lambda: databases.create_string_attribute(
+                            retry_api_call(lambda: tables_db.create_string_column(
                                 database_id=DATABASE_ID,
-                                collection_id=col_id,
+                                table_id=col_id,
                                 key=attr_key,
                                 size=attr["size"],
                                 required=attr_req,
                                 default=attr.get("default")
                             ))
                         elif attr_type == "integer":
-                            retry_api_call(lambda: databases.create_integer_attribute(
+                            retry_api_call(lambda: tables_db.create_integer_column(
                                 database_id=DATABASE_ID,
-                                collection_id=col_id,
+                                table_id=col_id,
                                 key=attr_key,
                                 required=attr_req,
                                 min=attr.get("min"),
@@ -226,16 +226,16 @@ def init_appwrite_schema():
                                 default=attr.get("default")
                             ))
                         elif attr_type == "enum":
-                            retry_api_call(lambda: databases.create_enum_attribute(
+                            retry_api_call(lambda: tables_db.create_enum_column(
                                 database_id=DATABASE_ID,
-                                collection_id=col_id,
+                                table_id=col_id,
                                 key=attr_key,
                                 elements=attr["elements"],
                                 required=attr_req,
                                 default=attr.get("default")
                             ))
                         time.sleep(0.6)
-                        logger.info(f"  └─ ✓ [Attribute] Created attribute '{attr_key}'")
+                        logger.info(f"  └─ ✓ [Column] Created column '{attr_key}'")
                     except Exception as attr_err:
                         logger.warning(f"  └─ [!] Note on '{attr_key}': {attr_err}")
                 else:

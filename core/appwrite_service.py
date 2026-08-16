@@ -33,14 +33,14 @@ class AppwriteService:
         self.project_id = os.getenv("APPWRITE_PROJECT_ID", os.getenv("VITE_APPWRITE_PROJECT_ID", "neuromarketing-engine"))
         self.api_key = os.getenv("APPWRITE_API_KEY", "")
         self.database_id = os.getenv("APPWRITE_DATABASE_ID", "neuromarketing_db")
-        self.jobs_collection_id = os.getenv("APPWRITE_JOBS_COLLECTION_ID", "jobs")
-        self.results_collection_id = os.getenv("APPWRITE_RESULTS_COLLECTION_ID", "analysis_results")
-        self.experiments_collection_id = os.getenv("APPWRITE_EXPERIMENTS_COLLECTION_ID", "experiments")
+        self.jobs_table_id = os.getenv("APPWRITE_JOBS_TABLE_ID", os.getenv("APPWRITE_JOBS_COLLECTION_ID", "jobs"))
+        self.results_table_id = os.getenv("APPWRITE_RESULTS_TABLE_ID", os.getenv("APPWRITE_RESULTS_COLLECTION_ID", "analysis_results"))
+        self.experiments_table_id = os.getenv("APPWRITE_EXPERIMENTS_TABLE_ID", os.getenv("APPWRITE_EXPERIMENTS_COLLECTION_ID", "experiments"))
         self.bucket_id = os.getenv("APPWRITE_STORAGE_BUCKET_ID", "neuromarketing-assets")
 
         self.client = None
         self.storage = None
-        self.databases = None
+        self.tables_db = None
         self._lock = threading.RLock()
         self._memory_assets: Dict[str, Dict[str, Any]] = {}
         self._memory_jobs: Dict[str, Dict[str, Any]] = {}
@@ -49,25 +49,25 @@ class AppwriteService:
         if self.api_key and self.project_id:
             try:
                 from appwrite.client import Client
-                from appwrite.services.databases import Databases
                 from appwrite.services.storage import Storage
+                from appwrite.services.tables_db import TablesDB
 
                 self.client = Client()
                 self.client.set_endpoint(self.endpoint)
                 self.client.set_project(self.project_id)
                 self.client.set_key(self.api_key)
                 self.storage = Storage(self.client)
-                self.databases = Databases(self.client)
-                logger.info("AppwriteService initialized with remote storage/database.")
+                self.tables_db = TablesDB(self.client)
+                logger.info("AppwriteService initialized with remote storage/TablesDB.")
             except Exception as exc:  # pragma: no cover - depends on remote SDK/runtime
                 logger.warning("Appwrite initialization failed; local fallback active: %s", exc)
-                self.client = self.storage = self.databases = None
+                self.client = self.storage = self.tables_db = None
         else:
             logger.info("Appwrite credentials not configured; local fallback active for development/tests.")
 
     @property
     def remote_enabled(self) -> bool:
-        return bool(self.storage and self.databases)
+        return bool(self.storage and self.tables_db)
 
     @staticmethod
     def _now() -> str:
@@ -95,7 +95,7 @@ class AppwriteService:
             raw = getattr(value, "__dict__", None)
         if not isinstance(raw, dict):
             return None
-        # Appwrite SDK document models expose user fields under `data`.
+        # Appwrite SDK row models expose user fields under `data`.
         # Flatten them while retaining system identifiers for diagnostics.
         data = raw.get("data")
         if isinstance(data, dict):
@@ -233,14 +233,14 @@ class AppwriteService:
             "created_at": self._now(),
             "updated_at": self._now(),
         }
-        if self.databases:
+        if self.tables_db:
             if settings.APPWRITE_PROVIDER_FIELDS_ENABLED:
                 document.update({"provider": provider, "provider_job_id": provider_job_id})
             try:  # pragma: no cover - remote API dependent
-                return self._as_dict(self.databases.create_document(
+                return self._as_dict(self.tables_db.create_row(
                     database_id=self.database_id,
-                    collection_id=self.jobs_collection_id,
-                    document_id=job_id,
+                    table_id=self.jobs_table_id,
+                    row_id=job_id,
                     data=document,
                 )) or document
             except Exception as exc:
@@ -288,12 +288,12 @@ class AppwriteService:
         current = self.get_job_document(job_id, tenant_id=tenant_id)
         if current is None:
             return None
-        if self.databases:
+        if self.tables_db:
             try:  # pragma: no cover
-                return self._as_dict(self.databases.update_document(
+                return self._as_dict(self.tables_db.update_row(
                     database_id=self.database_id,
-                    collection_id=self.jobs_collection_id,
-                    document_id=job_id,
+                    table_id=self.jobs_table_id,
+                    row_id=job_id,
                     data=patch,
                 ))
             except Exception as exc:
@@ -304,12 +304,12 @@ class AppwriteService:
             return deepcopy(self._memory_jobs[job_id])
 
     def get_job_document(self, job_id: str, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        if self.databases:
+        if self.tables_db:
             try:  # pragma: no cover
-                document = self.databases.get_document(
+                document = self.tables_db.get_row(
                     database_id=self.database_id,
-                    collection_id=self.jobs_collection_id,
-                    document_id=job_id,
+                    table_id=self.jobs_table_id,
+                    row_id=job_id,
                 )
                 return self._assert_tenant(document, tenant_id)
             except Exception:
@@ -335,12 +335,12 @@ class AppwriteService:
             "created_at": result.get("created_at", self._now()),
             "updated_at": self._now(),
         }
-        if self.databases:
+        if self.tables_db:
             try:  # pragma: no cover
-                return self._as_dict(self.databases.create_document(
+                return self._as_dict(self.tables_db.create_row(
                     database_id=self.database_id,
-                    collection_id=self.results_collection_id,
-                    document_id=analysis_id,
+                    table_id=self.results_table_id,
+                    row_id=analysis_id,
                     data=document,
                 )) or document
             except Exception as exc:
@@ -351,12 +351,12 @@ class AppwriteService:
         return deepcopy(document)
 
     def get_result_document(self, analysis_id: str, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        if self.databases:
+        if self.tables_db:
             try:  # pragma: no cover
-                document = self.databases.get_document(
+                document = self.tables_db.get_row(
                     database_id=self.database_id,
-                    collection_id=self.results_collection_id,
-                    document_id=analysis_id,
+                    table_id=self.results_table_id,
+                    row_id=analysis_id,
                 )
                 return self._assert_tenant(document, tenant_id)
             except Exception:
@@ -365,7 +365,7 @@ class AppwriteService:
             return self._assert_tenant(self._memory_results.get(analysis_id), tenant_id)
 
     def get_experiment_status(self, experiment_id: str, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        if not self.databases:
+        if not self.tables_db:
             with self._lock:
                 matches = [doc for doc in self._memory_jobs.values() if doc.get("experiment_id") == experiment_id]
             return self._assert_tenant(matches[0] if matches else None, tenant_id)
@@ -375,13 +375,14 @@ class AppwriteService:
             queries = [Query.equal("experiment_id", experiment_id), Query.limit(1)]
             if tenant_id:
                 queries.append(Query.equal("tenant_id", tenant_id))
-            docs = self.databases.list_documents(
+            docs = self.tables_db.list_rows(
                 database_id=self.database_id,
-                collection_id=self.experiments_collection_id,
+                table_id=self.experiments_table_id,
                 queries=queries,
             )
-            documents = docs.get("documents", []) if docs else []
-            return documents[0] if documents else None
+            payload = self._as_dict(docs) or {}
+            rows = payload.get("rows", [])
+            return self._assert_tenant(rows[0] if rows else None, tenant_id)
         except Exception as exc:
             logger.warning("Error querying experiment status: %s", exc)
             return None

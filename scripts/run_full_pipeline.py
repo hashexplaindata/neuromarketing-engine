@@ -158,7 +158,7 @@ def upload_to_cloud(image_path, heatmap_path, experiment_id, experiment_data, re
     try:
         from appwrite.client import Client
         from appwrite.services.storage import Storage
-        from appwrite.services.databases import Databases
+        from appwrite.services.tables_db import TablesDB
         from appwrite.input_file import InputFile
         from appwrite.id import ID
 
@@ -168,7 +168,7 @@ def upload_to_cloud(image_path, heatmap_path, experiment_id, experiment_data, re
         client.set_key(api_key)
 
         storage = Storage(client)
-        databases = Databases(client)
+        tables_db = TablesDB(client)
 
         raw_id = ID.unique()
         file_result = storage.create_file(
@@ -195,10 +195,10 @@ def upload_to_cloud(image_path, heatmap_path, experiment_id, experiment_data, re
             "status": "completed",
             "created_at": datetime.now(timezone.utc).isoformat()
         }
-        databases.create_document(
+        tables_db.create_row(
             database_id=db_id,
-            collection_id="experiments",
-            document_id=ID.unique(),
+            table_id="experiments",
+            row_id=ID.unique(),
             data=exp_doc_data
         )
 
@@ -210,10 +210,10 @@ def upload_to_cloud(image_path, heatmap_path, experiment_id, experiment_data, re
             "heatmap_bucket_id": heatmap_file_id or file_id,
             "metrics_json": json.dumps(experiment_data)
         }
-        databases.create_document(
+        tables_db.create_row(
             database_id=db_id,
-            collection_id="variants",
-            document_id=ID.unique(),
+            table_id="variants",
+            row_id=ID.unique(),
             data=var_doc_data
         )
         return {'asset_file_id': file_id, 'heatmap_file_id': heatmap_file_id, 'experiment_id': experiment_id}
