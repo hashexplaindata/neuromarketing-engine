@@ -1,0 +1,43 @@
+{
+  "name": "neuromarketing-studio-worker",
+  "title": "Neuromarketing Studio GPU Worker",
+  "description": "Private GPU worker for Neuromarketing Studio predictive creative diagnostics. Runs the canonical image-analysis worker and persists tenant-scoped results and visual artifacts to Appwrite.",
+  "content": "Runs the Neuromarketing Studio worker command against a versioned container image.",
+  "version": "1.0.0",
+  "engine_type": "gpu-l4",
+  "command": "python -m workers.camber_worker",
+  "image_url": "ghcr.io/hashexplaindata/neuromarketing-engine:camber-worker",
+  "spec": [],
+  "job_config": [
+    {
+      "type": "Select",
+      "label": "GPU system size",
+      "name": "system_size",
+      "hidden": false,
+      "description": "Start with one L4 GPU for predictive image diagnostics.",
+      "options": [
+        {
+          "label": "GPU XSMALL (8 CPU, 32GB, L4)",
+          "value": "gpu_xsmall",
+          "map_value": {
+            "node_size": "XSMALL",
+            "num_nodes": 1,
+            "with_gpu": true
+          }
+        },
+        {
+          "label": "GPU SMALL (16 CPU, 64GB, L4)",
+          "value": "gpu_small",
+          "map_value": {
+            "node_size": "SMALL",
+            "num_nodes": 1,
+            "with_gpu": true
+          }
+        }
+      ],
+      "default_value": "gpu_xsmall"
+    }
+  ],
+  "public": false,
+  "anonymous": false
+}

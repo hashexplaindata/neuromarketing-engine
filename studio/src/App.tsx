@@ -20,6 +20,8 @@ type JobState = {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
 const ACCESS_TOKEN = import.meta.env.VITE_ACCESS_TOKEN || '';
+const JOB_STORAGE_KEY = 'neuromarketingStudio.jobId';
+const LEGACY_JOB_STORAGE_KEY = 'signalStudio.jobId';
 
 function parseMaybeJson(value: unknown): any {
   if (typeof value !== 'string') return value;
@@ -100,7 +102,7 @@ export const App = () => {
   }, [clearPolling, hydrateJob]);
 
   useEffect(() => {
-    const savedJobId = window.localStorage.getItem('signalStudio.jobId');
+    const savedJobId = window.localStorage.getItem(JOB_STORAGE_KEY) || window.localStorage.getItem(LEGACY_JOB_STORAGE_KEY);
     if (savedJobId && ACCESS_TOKEN) {
       setPhase('QUEUED');
       void pollJob(savedJobId);
@@ -186,7 +188,7 @@ export const App = () => {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || `Analysis request failed (${response.status})`);
       const initialState: JobState = body;
-      window.localStorage.setItem('signalStudio.jobId', initialState.job_id);
+      window.localStorage.setItem(JOB_STORAGE_KEY, initialState.job_id);
       setJob(initialState);
       setPhase('QUEUED');
       void pollJob(initialState.job_id);
@@ -220,7 +222,7 @@ export const App = () => {
     <div className="studio-container">
       <nav className="navbar">
         <div className="brand-badge">
-          <div className="brand-title">BIA SIGNAL STUDIO</div>
+          <div className="brand-title">NEUROMARKETING STUDIO</div>
           <span className="version-pill">PREDICTIVE DIAGNOSTICS</span>
         </div>
         <label className="btn-action btn-primary" style={{ margin: 0, padding: '8px 16px', fontSize: '0.85rem', cursor: 'pointer' }}>

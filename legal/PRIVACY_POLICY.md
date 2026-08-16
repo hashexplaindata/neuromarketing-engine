@@ -1,4 +1,4 @@
-# Neuromarketing Suite — Privacy Policy & Data Handling
+# Neuromarketing Studio — Privacy Policy & Data Handling
 
 **Last Updated:** August 15, 2026  
 

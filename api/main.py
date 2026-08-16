@@ -1,4 +1,4 @@
-"""FastAPI gateway for BIA Signal Studio.
+"""FastAPI gateway for Neuromarketing Studio.
 
 The public API exposes the canonical authenticated analysis and job-status
 routes. Heavy inference is delegated to the worker path; the gateway does not
@@ -17,7 +17,7 @@ from api.routes import router as canonical_router
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 app = FastAPI(
-    title="BIA Signal Studio API",
+    title="Neuromarketing Studio API",
     description="Tenant-scoped creative diagnostics gateway for predictive visual-attention analysis.",
     version="5.0.0",
 )

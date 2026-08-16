@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DeepGaze III, UMSI & YOLO Neural Model Downloader / Compiler
-ICM Neuromarketing Platform - Master Architecture Specification
+Neuromarketing Studio Platform - Master Architecture Specification
 Compiles and exports real DeepGaze III, UMSI, and YOLO ONNX architectures into `_config/models/`.
 """
 

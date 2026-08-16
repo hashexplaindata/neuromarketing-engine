@@ -1,5 +1,5 @@
 {
-  "name": "Neuromarketing Engine Codespace",
+  "name": "Neuromarketing Studio Codespace",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
   "forwardPorts": [8000, 3000],
   "postCreateCommand": "pip install -r requirements.txt && cd studio && npm install",

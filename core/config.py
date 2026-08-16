@@ -12,7 +12,7 @@ except ImportError:
 
 class Settings(BaseSettings):
     # App Identity & Heroku Runtime
-    APP_NAME: str = "ICM Neuromarketing Engine"
+    APP_NAME: str = "Neuromarketing Studio"
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"

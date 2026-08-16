@@ -3,41 +3,41 @@ import os
 legal_dir = r"D:\neuromarketing-engine\legal"
 os.makedirs(legal_dir, exist_ok=True)
 
-tos_content = """# Neuromarketing Suite — Enterprise Terms of Service (ToS)
+tos_content = """# Neuromarketing Studio — Enterprise Terms of Service (ToS)
 
 **Effective Date:** August 15, 2026  
-**Product:** Neuromarketing Suite  
+**Product:** Neuromarketing Studio
 
 ---
 
 ## 1. Acceptance of Terms
-By accessing, installing, or utilizing the Neuromarketing Suite (including the Figma Plugin, REST APIs, and Cloud Processing Services), you ("Client", "Organization", or "User") agree to be legally bound by these Terms of Service.
+By accessing, installing, or utilizing the Neuromarketing Studio (including the Figma Plugin, REST APIs, and Cloud Processing Services), you ("Client", "Organization", or "User") agree to be legally bound by these Terms of Service.
 
 ## 2. Description of Service
-Neuromarketing Suite provides computational visual attention modeling, spatial saliency estimation (via DeepGaze III and UMSI neural backbones), cognitive load scoring, and automated executive reporting for digital marketing creatives, packaging designs, and user interfaces.
+Neuromarketing Studio provides computational visual attention modeling, spatial saliency estimation (via DeepGaze III and UMSI neural backbones), cognitive load scoring, and automated executive reporting for digital marketing creatives, packaging designs, and user interfaces.
 
 ## 3. Computational Modeling & Scientific Disclaimers
-* **Synthetic Predictive Modeling:** Neuromarketing Suite computes predictive visual attention maps using validated artificial neural networks and psychophysics algorithms trained on empirical human eye-tracking benchmark datasets (e.g., MIT Saliency Benchmark).
-* **Non-Invasive Architecture:** The Suite does not operate hardware eye-tracking sensors, physical cameras, or physical biometric surveillance on end consumers. All analytics are computed synthetically from visual design assets.
+* **Synthetic Predictive Modeling:** Neuromarketing Studio computes predictive visual attention maps using validated artificial neural networks and psychophysics algorithms trained on empirical human eye-tracking benchmark datasets (e.g., MIT Saliency Benchmark).
+* **Non-Invasive Architecture:** Neuromarketing Studio does not operate hardware eye-tracking sensors, physical cameras, or physical biometric surveillance on end consumers. All analytics are computed synthetically from visual design assets.
 * **Advisory Nature:** Saliency heatmaps, s-AUC, NSS scores, and AI recommendations are advisory design optimization tools and do not constitute absolute guarantees of commercial revenue or market performance.
 
 ## 4. Intellectual Property & Customer Asset Ownership
-* **Customer Content:** The Client retains 100% full intellectual property ownership, copyright, and title to all design assets, images, copy, and creative files uploaded to Neuromarketing Suite.
-* **No Training on Customer IP:** Neuromarketing Suite does NOT use customer proprietary design assets to train public foundation models without explicit written enterprise consent.
-* **Platform IP:** The underlying neural network architectures, algorithms, ONNX models, software, APIs, and documentation remain the exclusive property of Neuromarketing Suite.
+* **Customer Content:** The Client retains 100% full intellectual property ownership, copyright, and title to all design assets, images, copy, and creative files uploaded to Neuromarketing Studio.
+* **No Training on Customer IP:** Neuromarketing Studio does NOT use customer proprietary design assets to train public foundation models without explicit written enterprise consent.
+* **Platform IP:** The underlying neural network architectures, algorithms, ONNX models, software, APIs, and documentation remain the exclusive property of Neuromarketing Studio.
 
 ## 5. Data Security, Multi-Tenancy & Privacy
 * Client data is strictly partitioned using Document-Level Security (DLS) and encrypted at rest (AES-256) and in transit (TLS 1.3) via Appwrite BaaS and isolated Upstash Redis instances.
 * Ephemeral processing workspaces are deleted in accordance with the Client's data retention policies.
 
 ## 6. Limitation of Liability
-To the maximum extent permitted by applicable law, Neuromarketing Suite and its affiliates shall not be liable for indirect, incidental, special, or consequential damages resulting from marketing campaign performance, third-party platform downtime, or advertising outcomes.
+To the maximum extent permitted by applicable law, Neuromarketing Studio and its affiliates shall not be liable for indirect, incidental, special, or consequential damages resulting from marketing campaign performance, third-party platform downtime, or advertising outcomes.
 
 ## 7. Governing Law
 These Terms shall be governed by and construed in accordance with applicable commercial and international software licensing laws.
 """
 
-privacy_content = """# Neuromarketing Suite — Privacy Policy & Data Handling
+privacy_content = """# Neuromarketing Studio — Privacy Policy & Data Handling
 
 **Last Updated:** August 15, 2026  
 
@@ -61,12 +61,12 @@ privacy_content = """# Neuromarketing Suite — Privacy Policy & Data Handling
 * Clients have the right to request deletion of all stored variants, heatmaps, and experiment histories at any time through the dashboard or API (`DELETE /api/v1/experiments/{id}`).
 """
 
-copywriting_content = """# Neuromarketing Suite — Brand Copywriting & Positioning System
+copywriting_content = """# Neuromarketing Studio — Brand Copywriting & Positioning System
 
 ---
 
 ## 1. Core Brand Identity
-* **Product Name:** Neuromarketing Suite
+* **Product Name:** Neuromarketing Studio
 * **Category:** Enterprise Predictive Visual Attention & Cognitive Neuromarketing Platform
 * **Primary Tagline:** *"Predict Consumer Attention Before You Launch."*
 * **Secondary Taglines:**
@@ -79,7 +79,7 @@ copywriting_content = """# Neuromarketing Suite — Brand Copywriting & Position
 
 ### Pillar 1: Sub-Second Predictive Heatmaps
 * **Headline:** See What Your Customers See in the First 250 Milliseconds.
-* **Body:** Powered by DeepGaze III and UMSI neural backbones, Neuromarketing Suite models the human visual cortex to predict exact eye fixations, scanpaths, and foveal attention capture with 95%+ benchmark correlation.
+* **Body:** Powered by DeepGaze III and UMSI neural backbones, Neuromarketing Studio models the human visual cortex to predict exact eye fixations, scanpaths, and foveal attention capture with 95%+ benchmark correlation.
 
 ### Pillar 2: Psychophysics & Cognitive Load Scoring
 * **Headline:** Optimize Visual Hierarchy. Eliminate Decision Fatigue.

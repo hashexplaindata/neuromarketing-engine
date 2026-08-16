@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PDF Compiler (WeasyPrint HTML-to-PDF Renderer)
-ICM Neuromarketing Pipeline - Stage 06 Final Compiler
+Neuromarketing Studio Pipeline - Stage 06 Final Compiler
 """
 
 import os
@@ -24,12 +24,12 @@ def compile_pdf(html_path: str, pdf_path: str):
         print("[Stage 06 Compiler] Note: WeasyPrint package not installed. Writing static deliverable artifact.")
         # Create a stub/placeholder PDF info
         with open(pdf_path, "wb") as f:
-            f.write(b"%PDF-1.4\n% Neuromarketing Executive Deliverable Generated via ICM Engine\n")
+            f.write(b"%PDF-1.4\n% Neuromarketing Studio Executive Deliverable Generated via ICM Engine\n")
         print(f"[Stage 06 Compiler] Report HTML is ready at: {html_path}")
     except Exception as e:
         print(f"[Stage 06 Compiler] Note: WeasyPrint runtime rendered notice: {e}")
         with open(pdf_path, "wb") as f:
-            f.write(b"%PDF-1.4\n% Neuromarketing Executive Deliverable Generated via ICM Engine\n")
+            f.write(b"%PDF-1.4\n% Neuromarketing Studio Executive Deliverable Generated via ICM Engine\n")
         print(f"[Stage 06 Compiler] Standalone HTML deliverable ready at: {html_path}")
 
 if __name__ == "__main__":
