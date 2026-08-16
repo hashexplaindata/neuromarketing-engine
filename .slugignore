@@ -1,0 +1,19 @@
+# Heroku web dyno is the lightweight authenticated API; Camber owns GPU inference.
+studio/
+tests/
+output/
+workers/
+scripts/
+_config/
+requirements-worker.txt
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.safetensors
+*.bin
+*.mp4
+*.mov
+*.avi
+*.wav
+*.mp3
