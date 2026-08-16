@@ -52,8 +52,10 @@ def verify_jwt_token(token: str) -> AuthenticatedUser:
     if token.startswith("Bearer ") or token.startswith("bearer "):
         token = token[7:].strip()
         
-    # 1. Dev/Test Mock bypass token format: "test_tenant_{tenant_id}"
-    if token.startswith("test_tenant_"):
+    # 1. Development-only mock token. Never accept this format in production.
+    if token.startswith("test_tenant_") and not settings.DEBUG:
+        raise ValueError("Development authentication token is disabled in production")
+    if settings.DEBUG and token.startswith("test_tenant_"):
         tenant_id = token.replace("test_tenant_", "").strip()
         return AuthenticatedUser(
             user_id="usr_dev_001",
