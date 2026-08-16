@@ -22,7 +22,7 @@ Neuromarketing Studio provides computational visual attention modeling, spatial 
 * **Platform IP:** The underlying neural network architectures, algorithms, ONNX models, software, APIs, and documentation remain the exclusive property of Neuromarketing Studio.
 
 ## 5. Data Security, Multi-Tenancy & Privacy
-* Client data is strictly partitioned using Document-Level Security (DLS) and encrypted at rest (AES-256) and in transit (TLS 1.3) via Appwrite BaaS and isolated Upstash Redis instances.
+* Client data is strictly partitioned using Document-Level Security (DLS) and encrypted at rest and in transit through Appwrite BaaS and isolated Modal execution environments. Job records and artifacts remain tenant-scoped in Appwrite.
 * Ephemeral processing workspaces are deleted in accordance with the Client's data retention policies.
 
 ## 6. Limitation of Liability

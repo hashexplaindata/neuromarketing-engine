@@ -5,4 +5,4 @@ python-dotenv>=1.0.1,<2
 requests>=2.32.0,<3
 appwrite>=5.0.0,<24
 PyJWT>=2.8.0,<3
-redis>=5.0.0,<7
+modal>=1.0.0,<2

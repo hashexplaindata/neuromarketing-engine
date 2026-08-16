@@ -1,5 +1,5 @@
 """
-FastAPI Gateway & Route Integration Tests (Heroku + Appwrite + Upstash Stack)
+FastAPI Gateway & Route Integration Tests (Heroku + Appwrite + Modal Stack)
 Verifies HTTP endpoints, Appwrite JWT security, and zero-timeout async dispatch.
 """
 
@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from api.main import app
 from core.auth import create_access_token
+from core.modal_provider import modal_provider
 
 client = TestClient(app)
 
@@ -23,7 +24,7 @@ def test_analyze_unauthorized_rejection():
     })
     assert response.status_code == 401
 
-def test_analyze_authorized_job_initiation():
+def test_analyze_authorized_job_initiation(monkeypatch):
     # Generate test JWT for an agency
     token = create_access_token(
         tenant_id="agency_dentsu",
@@ -31,6 +32,7 @@ def test_analyze_authorized_job_initiation():
         email="art_director@dentsu.com"
     )
     
+    monkeypatch.setattr(modal_provider, "submit", lambda payload: "fc-test-api-123")
     headers = {"Authorization": f"Bearer {token}"}
     response = client.post("/api/v1/analyze", headers=headers, json={
         "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",

@@ -19,6 +19,8 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
+from core.config import settings
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
@@ -211,6 +213,8 @@ class AppwriteService:
         project_id: str = "default",
         asset_id: Optional[str] = None,
         experiment_id: Optional[str] = None,
+        provider: Optional[str] = None,
+        provider_job_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         document = {
             "job_id": job_id,
@@ -230,6 +234,8 @@ class AppwriteService:
             "updated_at": self._now(),
         }
         if self.databases:
+            if settings.APPWRITE_PROVIDER_FIELDS_ENABLED:
+                document.update({"provider": provider, "provider_job_id": provider_job_id})
             try:  # pragma: no cover - remote API dependent
                 return self._as_dict(self.databases.create_document(
                     database_id=self.database_id,
@@ -258,6 +264,8 @@ class AppwriteService:
         results_json: Optional[Dict[str, Any]] = None,
         error_json: Optional[Dict[str, Any]] = None,
         message: Optional[str] = None,
+        provider: Optional[str] = None,
+        provider_job_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         patch = {
             "status": status,
@@ -271,6 +279,11 @@ class AppwriteService:
             patch["error_json"] = self._stringify(error_json)
         if message is not None:
             patch["message"] = message
+        if settings.APPWRITE_PROVIDER_FIELDS_ENABLED:
+            if provider is not None:
+                patch["provider"] = provider
+            if provider_job_id is not None:
+                patch["provider_job_id"] = provider_job_id
 
         current = self.get_job_document(job_id, tenant_id=tenant_id)
         if current is None:

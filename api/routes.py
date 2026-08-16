@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from core.appwrite_service import appwrite_service
 from core.auth import AuthenticatedUser, verify_jwt_token
-from core.upstash_queue import upstash_queue
+from core.modal_provider import modal_provider
 
 logger = logging.getLogger("icm.api")
 router = APIRouter()
@@ -91,6 +91,7 @@ async def create_analysis_job(
         project_id=request.project_id,
         asset_id=asset_id,
         experiment_id=experiment_id,
+        provider=modal_provider.provider_name,
     )
 
     task_payload = {
@@ -107,7 +108,28 @@ async def create_analysis_job(
         "requested_permutations": request.requested_permutations,
         "idempotency_key": idempotency_header,
     }
-    upstash_queue.push_gpu_job(task_payload)
+    try:
+        provider_job_id = modal_provider.submit(task_payload)
+        appwrite_service.update_job_status(
+            job_id,
+            "ENQUEUED",
+            tenant_id=current_user.tenant_id,
+            message="Modal GPU task submitted",
+            provider=modal_provider.provider_name,
+            provider_job_id=provider_job_id,
+        )
+    except Exception as exc:
+        appwrite_service.update_job_status(
+            job_id,
+            "FAILED",
+            stage=0,
+            progress=0,
+            tenant_id=current_user.tenant_id,
+            error_json={"code": "GPU_SUBMISSION_FAILED", "message": str(exc)[:500], "retryable": True},
+            message="Modal GPU task submission failed",
+            provider=modal_provider.provider_name,
+        )
+        raise HTTPException(status_code=503, detail="GPU execution provider unavailable") from exc
 
     return JobInitiatedResponse(
         job_id=job_id,
@@ -123,10 +145,6 @@ async def create_analysis_job(
 @router.get("/jobs/{job_id}")
 async def get_job_status(job_id: str, current_user: AuthenticatedUser = Depends(get_current_user)):
     """Return only the requesting tenant’s job state."""
-    cached_state = upstash_queue.get_job_state(job_id, tenant_id=current_user.tenant_id)
-    if cached_state:
-        return cached_state
-
     document = appwrite_service.get_job_document(job_id, tenant_id=current_user.tenant_id)
     if document is None:
         # Backward-compatible, non-leaking response for clients that poll before
@@ -151,6 +169,8 @@ async def get_job_status(job_id: str, current_user: AuthenticatedUser = Depends(
         "results": document.get("results_json"),
         "error": document.get("error_json"),
         "message": document.get("message"),
+        "provider": document.get("provider"),
+        "provider_job_id": document.get("provider_job_id"),
     }
 
 

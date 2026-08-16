@@ -51,5 +51,5 @@ COPY . /app/
 # Create ephemeral workspaces mount directory
 RUN mkdir -p /app/ephemeral_workspaces /tmp/neuromarketing /app/models/torch /app/models/ultralytics /app/models/easyocr
 
-# Run the canonical Neuromarketing Studio queue daemon with one process for strict GPU VRAM isolation
-CMD ["python3", "-m", "workers.camber_worker"]
+# Modal invokes one isolated task through modal_app.py; keep a neutral module entrypoint for local diagnostics.
+CMD ["python3", "-m", "workers.modal_worker"]

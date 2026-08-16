@@ -1,14 +1,13 @@
-"""GPU-worker adapter for queued neuromarketing analysis jobs.
+"""Provider-neutral Neuromarketing Studio GPU worker.
 
-The worker accepts the canonical task payload, resolves the asset from either a
-base64 upload or Appwrite storage, executes the existing real pipeline, and
-publishes a durable result envelope. It does not fabricate provider metrics.
+Modal invokes ``process_modal_job`` once per asynchronous task. The worker
+resolves the asset from Appwrite, executes the real pipeline, persists the
+canonical result envelope and artifacts, and returns the envelope to Modal.
 """
 
 from __future__ import annotations
 
 import base64
-import json
 import logging
 import os
 import tempfile
@@ -24,11 +23,10 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 from core.appwrite_service import appwrite_service
 from core.contracts import JobStatus
-from core.upstash_queue import upstash_queue
 from core.vram_manager import VRAMManager
 from scripts.run_full_pipeline import run_full_pipeline
 
-logger = logging.getLogger("camber_worker")
+logger = logging.getLogger("modal_worker")
 
 
 def _decode_data_url(value: str) -> bytes:
@@ -90,14 +88,8 @@ def _result_envelope(task: Dict[str, Any], report: Dict[str, Any], artifact_file
     }
 
 
-def process_camber_gpu_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
-    """Execute one real queued job and persist its status/result.
-
-    The function is synchronous by design for the worker process. The API should
-    enqueue this work and return 202; tests may call it directly with a tiny local
-    asset. Provider failures are surfaced as FAILED rather than replaced by mock
-    metrics.
-    """
+def process_modal_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
+    """Execute one real task and persist its status/result to Appwrite."""
     service = service or appwrite_service
     job_id = task.get("job_id", f"job_{int(time.time())}")
     tenant_id = task.get("tenant_id", "tenant_unknown")
@@ -106,7 +98,7 @@ def process_camber_gpu_job(task: Dict[str, Any], service=None) -> Dict[str, Any]
     temp_path: Optional[str] = None
 
     try:
-        service.update_job_status(job_id, JobStatus.RUNNING.value, stage=1, progress=5, tenant_id=tenant_id, message="Worker accepted analysis job")
+        service.update_job_status(job_id, JobStatus.RUNNING.value, stage=1, progress=5, tenant_id=tenant_id, message="Modal worker accepted analysis job")
 
         with tempfile.NamedTemporaryFile(prefix=f"{job_id}_", suffix=_safe_suffix(filename), delete=False) as handle:
             temp_path = handle.name
@@ -119,7 +111,7 @@ def process_camber_gpu_job(task: Dict[str, Any], service=None) -> Dict[str, Any]
             else:
                 raise ValueError("Task has neither image_base64 nor an Appwrite file ID")
 
-        with VRAMManager.vram_stage("camber_full_execution"):
+        with VRAMManager.vram_stage("modal_full_execution"):
             report = run_full_pipeline(temp_path)
 
         artifact_file_ids, artifact_errors = _persist_artifacts(service, report, tenant_id)
@@ -152,7 +144,7 @@ def process_camber_gpu_job(task: Dict[str, Any], service=None) -> Dict[str, Any]
             error_json=error,
             message="Analysis failed",
         )
-        logger.exception("Camber job %s failed", job_id)
+        logger.exception("Modal job %s failed", job_id)
         raise
     finally:
         if temp_path:
@@ -160,32 +152,3 @@ def process_camber_gpu_job(task: Dict[str, Any], service=None) -> Dict[str, Any]
                 os.unlink(temp_path)
             except OSError:
                 pass
-
-
-class CamberWorkerDaemon:
-    def __init__(self):
-        self.running = True
-
-    def pop_job(self, timeout: int = 2) -> Optional[Dict[str, Any]]:
-        return upstash_queue.pop_gpu_job(timeout=timeout)
-
-    def process_job(self, job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        return process_camber_gpu_job(job_data)
-
-    def run(self, max_iterations: Optional[int] = None):
-        logger.info("Camber worker daemon started")
-        count = 0
-        while self.running and (max_iterations is None or count < max_iterations):
-            job = self.pop_job(timeout=2)
-            if job:
-                try:
-                    self.process_job(job)
-                except Exception:
-                    logger.exception("Job failed; continuing worker loop")
-            else:
-                time.sleep(2)
-            count += 1
-
-
-if __name__ == "__main__":
-    CamberWorkerDaemon().run()

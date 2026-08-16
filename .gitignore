@@ -38,3 +38,8 @@ output/analysis_results/video_frames/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Local generated artifacts from diagnostics and alternate package managers
+output/
+studio/pnpm-lock.yaml
+studio/pnpm-workspace.yaml

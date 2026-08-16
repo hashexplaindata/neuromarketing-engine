@@ -13,12 +13,12 @@
 │                    API GATEWAY (HEROKU)                         │
 │ ┌─────────────────────────────────────────────────────────────┐ │
 │ │                  FastAPI Server (Always-On)                 │ │
-│ │  • Validates Auth • Drops Payload to Redis • Returns job_id │ │
+│ │  • Validates Auth • Creates Appwrite job • Submits Modal call │ │
 │ └─────────────────────────────┬───────────────────────────────┘ │
 └───────────────────────────────┼─────────────────────────────────┘
-                                │ (Upstash Redis Queue)
+                                │ (Modal async Function call)
 ┌───────────────────────────────▼─────────────────────────────────┐
-│               GPU WORKERS (CAMBER CLOUD L4 NODES)               │
+│               GPU WORKERS (MODAL L4 FUNCTIONS)                  │
 │ ┌─────────────────────────────────────────────────────────────┐ │
 │ │ 1. EARLY CORTEX (OpenCV): Normalization, Visual Entropy     │ │
 │ │ 2. ENSEMBLE BASE (ONNX): DeepGaze III + UMSI (FP16)         │ │
@@ -52,11 +52,11 @@
 ## 1. GLOBAL CLOUD TOPOLOGY
 The platform operates on a decoupled, asynchronous microservices architecture to prevent HTTP timeouts and isolate heavy GPU compute from the client interface.
 
-1.  **Frontend (Figma Plugin):** React + TypeScript. Communicates strictly via Appwrite Realtime WebSockets and HTTP calls to Heroku.
-2.  **API Gateway (Heroku):** FastAPI Python server. Validates JWTs, routes requests, and pushes inference jobs to Redis. ZERO heavy compute occurs here.
-3.  **Async Queue (Upstash Redis):** Serverless message broker. Holds the `job_id` and image payloads.
-4.  **GPU Workers (Camber Cloud):** NVIDIA L4 nodes running Dockerized Python/ONNX workers. Pulls from Redis, crunches DeepGaze III math, and pushes JSON to Appwrite.
-5.  **BaaS / State Layer (Appwrite):** Handles User Auth, Teams API (RBAC), Document Database, Storage Buckets, and Realtime WebSocket events.
+1.  **Frontend (React Studio):** React + TypeScript. Submits authenticated jobs to Heroku and polls the durable job endpoint; Realtime may be added as an optimization.
+2.  **API Gateway (Heroku):** FastAPI server. Validates JWTs, stores the asset and durable job in Appwrite, submits one asynchronous Modal Function call, and performs no heavy compute.
+3.  **GPU Execution (Modal):** Private NVIDIA L4 Function containers built from the worker Dockerfile. Modal returns an execution ID and handles autoscaling/retries.
+4.  **Worker:** Provider-neutral Python worker downloads the Appwrite asset, executes the DeepGaze/YOLO/OCR/statistical pipeline, and writes the result envelope and artifacts to Appwrite.
+5.  **BaaS / State Layer (Appwrite):** Handles tenant-scoped job records, Storage artifacts, results, and optional Realtime events.
 
 ---
 
@@ -103,18 +103,17 @@ The IDE must use the `appwrite` Python Server SDK to initialize this exact datab
 ---
 
 ## 3. FIGMA PLUGIN REAL-TIME STATE MACHINE (REACT)
-The frontend must never use polling (e.g., `setInterval`) to check if the GPU is finished. It must use Appwrite's native WebSocket Realtime API.
+The frontend uses authenticated durable polling as the recovery path. Appwrite Realtime may provide faster notifications, but it is not the only source of truth and cannot replace refresh-safe polling.
 
 *   **State 1: Selection & ROI Canvas:** User selects Figma frames, draws bounding boxes, and clicks "Run Experiment". Plugin POSTs to Heroku FastAPI.
-*   **State 2: The Async Wait:** UI displays a loading state. Plugin subscribes to the Appwrite Realtime channel: 
-    `client.subscribe('databases.[NeuromarketingDB].collections.[experiments].documents.[experiment_id]')`
-*   **State 3: Execution Trigger:** When the Camber GPU worker finishes, it updates the Appwrite `experiments` document `status` to `completed`.
-*   **State 4: Analytics Dashboard:** The WebSocket event instantly triggers the React UI to fetch the `variants` data, rendering the heatmap overlays and LLM scorecards over the Figma canvas.
+*   **State 2: The Async Wait:** UI displays a loading state and polls the authenticated Heroku job endpoint. An optional Appwrite Realtime subscription can reduce perceived latency.
+*   **State 3: Execution Trigger:** The Modal GPU Function updates the tenant-scoped Appwrite job and result records as it progresses.
+*   **State 4: Analytics Dashboard:** The React client hydrates the durable result and artifact references, rendering heatmap overlays and evidence-labelled scorecards.
 
 ---
 
 ## 4. MATHEMATICAL & NEUROSCIENCE KERNEL (GPU WORKERS)
-The Python worker running on Camber Cloud MUST adhere strictly to these computational methodologies.
+The Python worker running in a private Modal L4 Function MUST adhere strictly to these computational methodologies.
 
 ### Pre-Processing (OpenCV)
 Before AI inference, run structural heuristics:

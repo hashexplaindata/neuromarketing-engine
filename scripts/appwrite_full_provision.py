@@ -139,16 +139,9 @@ def provision_all_appwrite_services():
 
     # 3. APPWRITE CLOUD FUNCTIONS (SERVERLESS EVENT HOOKS)
     logger.info("[3/4] Configuring Cloud Functions & Event Triggers...")
+    # GPU submission occurs exactly once from the authenticated Heroku API via Modal.
+    # Appwrite hooks must not dispatch a second copy of the same analysis.
     functions_spec = [
-        {
-            "id": "camber-job-hook",
-            "name": "Camber GPU Job Dispatcher",
-            "runtime": "python-3.12",
-            "events": [
-                f"databases.{database_id}.collections.experiments.documents.*.create"
-            ],
-            "timeout": 30
-        },
         {
             "id": "report-email-notifier",
             "name": "Executive Scorecard Notifier",

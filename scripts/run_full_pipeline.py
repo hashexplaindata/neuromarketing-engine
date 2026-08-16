@@ -223,37 +223,6 @@ def upload_to_cloud(image_path, heatmap_path, experiment_id, experiment_data, re
         return None
 
 
-def enqueue_redis(job_data):
-    """Enqueue job status to Upstash Redis."""
-    import requests
-
-    url = os.getenv("UPSTASH_REDIS_REST_URL", "").strip().strip('"')
-    token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip().strip('"')
-
-    if not url or not token:
-        return
-
-    try:
-        headers = {"Authorization": f"Bearer {token}"}
-        payload = json.dumps(job_data)
-
-        requests.post(
-            f"{url}/lpush/queue:analysis_jobs",
-            headers=headers,
-            data=payload,
-            timeout=5
-        )
-        job_id = job_data.get('job_id', 'unknown')
-        requests.post(
-            f"{url}/set/job:{job_id}/status",
-            headers=headers,
-            data=json.dumps({"status": "COMPLETED"}),
-            timeout=5
-        )
-    except Exception as e:
-        logger.warning(f"Redis enqueue note: {e}")
-
-
 def analyze_single_image(
     image_path: str,
     saliency_eng: SaliencyEngine,
@@ -380,8 +349,6 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0) -> di
     media_type = "VIDEO" if is_video else "IMAGE"
     print(f"\n[STAGE 1] INGESTION -> Media Type: {media_type}")
 
-    enqueue_redis({"job_id": job_id, "experiment_id": experiment_id, "status": "PROCESSING", "asset": os.path.basename(input_media_path), "media_type": media_type})
-
     # Initialize Core Engines
     saliency_eng = SaliencyEngine()
     detector = ObjectDetector()
@@ -479,8 +446,6 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0) -> di
     report_path = os.path.join(output_dir, "full_report.json")
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(final_report, f, indent=2, default=str)
-
-    enqueue_redis({"job_id": job_id, "experiment_id": experiment_id, "status": "COMPLETED", "report_path": report_path})
 
     print("\n" + "=" * 85)
     print(f"PIPELINE COMPLETE in {elapsed:.1f}s")
