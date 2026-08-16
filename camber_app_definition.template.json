@@ -4,7 +4,7 @@
   "description": "Private GPU worker for Neuromarketing Studio predictive creative diagnostics. Runs the canonical image-analysis worker and persists tenant-scoped results and visual artifacts to Appwrite.",
   "content": "Runs the Neuromarketing Studio worker command against a versioned container image.",
   "version": "1.0.0",
-  "engine_type": "gpu-l4",
+  "engineType": "gpu-l4",
   "command": "python -m workers.camber_worker",
   "image_url": "ghcr.io/hashexplaindata/neuromarketing-engine:camber-worker",
   "spec": [],
