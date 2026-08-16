@@ -48,6 +48,7 @@ from scripts.neuromarketing_science import NeuromarketingScienceEngine
 from scripts.ctr_regressor import CTRRegressor
 from scripts.n_factorial_engine import run_nfactorial_experiment
 from scripts.report_synthesizer import synthesize_executive_report
+from scripts.report_exports import export_all, write_json_report
 
 logging.basicConfig(
     level=logging.INFO,
@@ -443,9 +444,15 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0) -> di
             }
         }
 
+    report_exports = export_all(final_report, os.path.join(output_dir, "reports"))
+    final_report["report_exports"] = report_exports
+    final_report.setdefault("visual_artifacts", {})
+    final_report["visual_artifacts"].update({f"report_{kind}": path for kind, path in report_exports.items()})
+    # Rewrite JSON after adding the export manifest so the durable JSON envelope
+    # is self-describing and points to the sibling export artifacts.
+    write_json_report(final_report, report_exports["json"])
     report_path = os.path.join(output_dir, "full_report.json")
-    with open(report_path, "w", encoding="utf-8") as f:
-        json.dump(final_report, f, indent=2, default=str)
+    write_json_report(final_report, report_path)
 
     print("\n" + "=" * 85)
     print(f"PIPELINE COMPLETE in {elapsed:.1f}s")

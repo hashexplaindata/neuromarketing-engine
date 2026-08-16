@@ -103,7 +103,7 @@ def provision_all_appwrite_services():
                     file_security=True,
                     enabled=True,
                     maximum_file_size=52428800, # 50 MB
-                    allowed_file_extensions=["jpg", "jpeg", "png", "webp", "pdf", "npy", "json", "svg"]
+                    allowed_file_extensions=["jpg", "jpeg", "png", "webp", "bmp", "tif", "tiff", "avif", "mp4", "mov", "avi", "mkv", "webm", "m4v", "pdf", "doc", "docx", "odt", "rtf", "txt", "html", "htm", "xls", "xlsx", "xlsm", "ods", "csv", "tsv", "npy", "json", "jsonl", "svg"]
                 )
                 logger.info(f"✓ Successfully created Bucket '{bucket_id}' with File Security & 50MB limits")
             except Exception as b_err:

@@ -257,7 +257,7 @@ def init_appwrite_schema():
                     file_security=True,
                     enabled=True,
                     maximum_file_size=52428800,
-                    allowed_file_extensions=["jpg", "jpeg", "png", "webp", "pdf", "npy", "json"]
+                    allowed_file_extensions=["jpg", "jpeg", "png", "webp", "bmp", "tif", "tiff", "avif", "mp4", "mov", "avi", "mkv", "webm", "m4v", "pdf", "doc", "docx", "odt", "rtf", "txt", "html", "htm", "xls", "xlsx", "xlsm", "ods", "csv", "tsv", "npy", "json", "jsonl", "svg"]
                 ))
                 logger.info(f"✓ [Storage] Successfully created bucket '{STORAGE_BUCKET_NAME}' (ID: {STORAGE_BUCKET_ID})")
             except Exception as b_err:
