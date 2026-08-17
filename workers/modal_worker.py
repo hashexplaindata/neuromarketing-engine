@@ -8,6 +8,7 @@ canonical result envelope and artifacts, and returns the envelope to Modal.
 from __future__ import annotations
 
 import base64
+import copy
 import logging
 import os
 import shutil
@@ -61,6 +62,21 @@ def _persist_artifacts(service, report: Dict[str, Any], tenant_id: str) -> tuple
             logger.warning("Artifact upload failed for %s: %s", artifact_name, exc)
             errors.append({"artifact": artifact_name, "error": str(exc)[:300]})
     return artifact_ids, errors
+
+
+def _sanitize_report_artifacts(report: Dict[str, Any], artifact_file_ids: Dict[str, str]) -> Dict[str, Any]:
+    """Return a portable report containing Appwrite IDs, never worker-local paths."""
+    sanitized = copy.deepcopy(report)
+    for field in ("visual_artifacts", "report_exports"):
+        artifact_map = sanitized.get(field)
+        if not isinstance(artifact_map, dict):
+            continue
+        sanitized[field] = {
+            name: artifact_file_ids.get(name) or artifact_file_ids.get(f"report_{name}")
+            for name in artifact_map
+            if name in artifact_file_ids or f"report_{name}" in artifact_file_ids
+        }
+    return sanitized
 
 
 def _result_envelope(task: Dict[str, Any], report: Dict[str, Any], artifact_file_ids: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -163,7 +179,8 @@ def process_modal_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
                 write_json_report(report, report_exports["json"])
 
         artifact_file_ids, artifact_errors = _persist_artifacts(service, report, tenant_id)
-        envelope = _result_envelope({**task, "analysis_id": analysis_id}, report, artifact_file_ids)
+        sanitized_report = _sanitize_report_artifacts(report, artifact_file_ids)
+        envelope = _result_envelope({**task, "analysis_id": analysis_id}, sanitized_report, artifact_file_ids)
         if artifact_errors:
             envelope["artifact_errors"] = artifact_errors
         service.save_result_document(envelope, tenant_id=tenant_id)

@@ -10,7 +10,7 @@ from api.main import app
 from core.appwrite_service import appwrite_service
 from core.auth import create_access_token
 from core.modal_provider import modal_provider
-from workers.modal_worker import process_modal_job
+from workers.modal_worker import _result_envelope, _sanitize_report_artifacts, process_modal_job
 
 client = TestClient(app)
 
@@ -61,6 +61,29 @@ def test_fastapi_analyze_endpoint_submits_modal_job(monkeypatch):
     assert data["status"] == "ENQUEUED"
     assert data["tenant_id"] == "agency_mccann"
     assert submitted["job_id"] == data["job_id"]
+
+
+def test_artifact_paths_are_sanitized_before_persistence():
+    report = {
+        "visual_artifacts": {
+            "thermal_heatmap": "/tmp/tenant-a/job-1/heatmap.png",
+            "report_pdf": "/tmp/tenant-a/job-1/report.pdf",
+        },
+        "report_exports": {"pdf": "/tmp/tenant-a/job-1/report.pdf"},
+        "metrics": {"s_auc": 0.8},
+    }
+    artifact_ids = {
+        "thermal_heatmap": "artifact_heatmap",
+        "report_pdf": "artifact_pdf",
+    }
+    sanitized = _sanitize_report_artifacts(report, artifact_ids)
+    envelope = _result_envelope({"job_id": "job-1", "tenant_id": "tenant-a"}, sanitized, artifact_ids)
+    serialized = str(envelope)
+    assert "/tmp/" not in serialized
+    assert "artifact_heatmap" in serialized
+    assert "artifact_pdf" in serialized
+    assert envelope["canvas_overlay"] == {"thermal_heatmap": "artifact_heatmap", "report_pdf": "artifact_pdf"}
+    assert envelope["report"]["report_exports"] == {"pdf": "artifact_pdf"}
 
 
 def test_modal_worker_pipeline_execution():
