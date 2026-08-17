@@ -8,7 +8,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -21,13 +21,15 @@ router = APIRouter()
 
 
 class AnalysisRequest(BaseModel):
-    image_base64: str = Field(..., min_length=16, description="Base64 encoded image or Figma canvas frame export")
+    image_base64: Optional[str] = Field(default=None, min_length=16, description="Base64 encoded image for compatibility clients")
+    file_id: Optional[str] = Field(default=None, min_length=1, max_length=160, description="Previously uploaded Appwrite asset file ID")
     filename: str = Field(default="figma_export.png", min_length=1, max_length=240)
     project_id: str = Field(default="default", min_length=1, max_length=160)
     experiment_id: Optional[str] = Field(default=None, max_length=160)
     domain_module: str = Field(default="UI_UX_AND_DIGITAL_ADS", max_length=160)
     requested_permutations: int = Field(default=18, ge=2, le=256)
     media_type: str = Field(default="IMAGE", max_length=40)
+    objective: str = Field(default="OVERALL_HIERARCHY", max_length=80)
 
 
 class JobInitiatedResponse(BaseModel):
@@ -58,6 +60,32 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Authe
         ) from exc
 
 
+@router.post("/assets/upload", status_code=status.HTTP_201_CREATED)
+async def upload_analysis_asset(
+    file: UploadFile = File(...),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Store one static creative before the analysis job is deliberately started."""
+    filename = file.filename or "creative_upload"
+    content_type = (file.content_type or "").lower()
+    suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if content_type not in {"image/jpeg", "image/png", "image/webp"} and suffix not in {"jpg", "jpeg", "png", "webp"}:
+        raise HTTPException(status_code=400, detail="The MVP supports static image creatives only: JPG, PNG, or WebP.")
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="The uploaded creative is empty.")
+    if len(content) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="For this MVP, choose an image smaller than 8 MB.")
+    asset_id = f"asset_{uuid.uuid4().hex[:16]}"
+    appwrite_service.upload_asset_file(asset_id, content, filename, tenant_id=current_user.tenant_id)
+    return {
+        "file_id": asset_id,
+        "filename": filename,
+        "media_type": "IMAGE",
+        "size_bytes": len(content),
+    }
+
+
 @router.post("/analyze", response_model=JobInitiatedResponse, status_code=status.HTTP_202_ACCEPTED)
 async def create_analysis_job(
     request: AnalysisRequest,
@@ -70,18 +98,25 @@ async def create_analysis_job(
     existing Figma adapter. Large production uploads should use direct object
     storage upload and submit a file reference through the same job contract.
     """
+    if request.media_type.upper() != "IMAGE":
+        raise HTTPException(status_code=400, detail="The MVP supports static image creatives only: JPG, PNG, or WebP.")
+    if not request.image_base64 and not request.file_id:
+        raise HTTPException(status_code=400, detail="Provide an uploaded file_id before starting analysis.")
+
     session_id = f"sess_{uuid.uuid4().hex[:12]}"
     job_id = f"job_{uuid.uuid4().hex[:16]}"
     asset_id = f"asset_{uuid.uuid4().hex[:16]}"
     experiment_id = request.experiment_id or f"exp_{uuid.uuid4().hex[:12]}"
 
-    try:
-        raw_b64 = request.image_base64.split(",", 1)[1] if "," in request.image_base64 else request.image_base64
-        image_bytes = base64.b64decode(raw_b64, validate=True)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="image_base64 is not valid base64") from exc
-
-    appwrite_service.upload_asset_file(asset_id, image_bytes, request.filename, tenant_id=current_user.tenant_id)
+    if request.file_id:
+        asset_id = request.file_id
+    else:
+        try:
+            raw_b64 = request.image_base64.split(",", 1)[1] if "," in request.image_base64 else request.image_base64
+            image_bytes = base64.b64decode(raw_b64, validate=True)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="image_base64 is not valid base64") from exc
+        appwrite_service.upload_asset_file(asset_id, image_bytes, request.filename, tenant_id=current_user.tenant_id)
     appwrite_service.create_job_document(
         job_id=job_id,
         session_id=session_id,
@@ -105,6 +140,7 @@ async def create_analysis_job(
         "filename": request.filename,
         "media_type": request.media_type,
         "domain_module": request.domain_module,
+        "objective": request.objective,
         "requested_permutations": request.requested_permutations,
         "idempotency_key": idempotency_header,
     }

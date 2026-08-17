@@ -88,6 +88,7 @@ def _result_envelope(task: Dict[str, Any], report: Dict[str, Any], artifact_file
         "session_id": task.get("session_id"),
         "tenant_id": task.get("tenant_id"),
         "project_id": task.get("project_id", "default"),
+        "objective": task.get("objective", "OVERALL_HIERARCHY"),
         "asset_id": task.get("appwrite_file_id") or task.get("file_id") or task.get("asset_id") or task.get("job_id"),
         "artifact_file_ids": artifact_file_ids or {},
         "user_id": task.get("user_id"),
@@ -97,11 +98,8 @@ def _result_envelope(task: Dict[str, Any], report: Dict[str, Any], artifact_file
         "canvas_overlay": report.get("visual_artifacts", {}),
         "neuromarketing_metrics": {
             "domain_kpis": report.get("metrics", {}),
-            "biometrics": report.get("biometrics", {}),
+            "mvp_diagnostic": report.get("mvp_diagnostic", {}),
             "linguistics": report.get("linguistics", {}),
-            "neuromarketing_indices": report.get("neuromarketing_indices", {}),
-            "ctr_forecast": report.get("ctr_forecast", {}),
-            "n_factorial": report.get("n_factorial"),
         },
         "report": report,
     }
@@ -135,7 +133,7 @@ def process_modal_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
         media_type = detect_media_type(temp_path)
         with VRAMManager.vram_stage("modal_full_execution"):
             if media_type in {"image", "video"}:
-                report = run_full_pipeline(temp_path, output_dir=workspace)
+                report = run_full_pipeline(temp_path, output_dir=workspace, objective=task.get("objective", "OVERALL_HIERARCHY"))
             else:
                 bundle = prepare_media_bundle(temp_path, os.path.join(workspace, "normalized"), max_frames=20)
                 frame_reports = []
@@ -146,6 +144,7 @@ def process_modal_job(task: Dict[str, Any], service=None) -> Dict[str, Any]:
                     frame_reports.append(run_full_pipeline(
                         frame_path,
                         output_dir=os.path.join(workspace, f"frame_{index:03d}"),
+                        objective=task.get("objective", "OVERALL_HIERARCHY"),
                     ))
                 primary_report = frame_reports[0] if frame_reports else {}
                 report = {

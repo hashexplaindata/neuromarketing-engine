@@ -76,7 +76,7 @@ def write_csv_report(report: Mapping[str, Any], output_path: str) -> str:
 
 
 def _metric_rows(report: Mapping[str, Any]) -> List[Tuple[str, Any]]:
-    sections = ["metrics", "ctr_forecast", "neuromarketing_indices", "biometrics", "linguistics"]
+    sections = ["mvp_diagnostic", "metrics", "linguistics", "scorecard"]
     rows: List[Tuple[str, Any]] = []
     for section in sections:
         if section in report:
@@ -152,23 +152,11 @@ def write_xlsx_report(report: Mapping[str, Any], output_path: str) -> str:
     metrics_sheet.auto_filter.ref = f"B1:C{metrics_sheet.max_row}"
     metrics_sheet.conditional_formatting.add(f"C2:C{metrics_sheet.max_row}", ColorScaleRule(start_type="min", start_color="FFFFFF", end_type="max", end_color=THEME["accent"]))
 
-    variants = report.get("n_factorial", {}).get("variant_results", {}) if isinstance(report.get("n_factorial"), Mapping) else {}
-    variants_sheet.append(["Variant", "NSS", "Cognitive load", "Hero attention share"])
-    for cell in variants_sheet[1][:4]:
-        cell.fill = header_fill
-        cell.font = header_font
-    for name, result in variants.items():
-        variants_sheet.append([name, result.get("nss"), result.get("cognitive_load"), result.get("hero_attention_share")])
-    if variants_sheet.max_row > 1:
-        chart = BarChart()
-        chart.title = "Variant model-derived NSS comparison"
-        chart.y_axis.title = "NSS"
-        chart.x_axis.title = "Variant"
-        chart.add_data(Reference(variants_sheet, min_col=2, min_row=1, max_row=variants_sheet.max_row), titles_from_data=True)
-        chart.set_categories(Reference(variants_sheet, min_col=1, min_row=2, max_row=variants_sheet.max_row))
-        chart.height = 7
-        chart.width = 14
-        variants_sheet.add_chart(chart, "F2")
+    variants_sheet.append(["Variant comparison"])
+    variants_sheet["A1"].fill = header_fill
+    variants_sheet["A1"].font = header_font
+    variants_sheet.append(["Variant comparison is available after a second approved creative is analysed. The MVP does not fabricate a winner or lift estimate."])
+    variants_sheet["A2"].alignment = Alignment(wrap_text=True)
     variants_sheet.freeze_panes = "B2"
 
     limitations = report.get("limitations") or report.get("neuromarketing_indices", {}).get("visual_approach_proxy", {}).get("not_measured", [])

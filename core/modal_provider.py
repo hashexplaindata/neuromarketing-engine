@@ -8,11 +8,16 @@ business system of record; Modal call IDs are execution references only.
 
 from __future__ import annotations
 
+import logging
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
+from core.appwrite_service import appwrite_service
 from core.config import settings
+
+logger = logging.getLogger("icm.modal_provider")
 
 
 @dataclass(frozen=True)
@@ -39,13 +44,34 @@ class ModalProvider:
             settings.MODAL_FUNCTION_NAME,
         )
 
+    def _run_local(self, task_payload: Dict[str, Any]) -> None:
+        """Run the real worker in-process for an explicit local-demo environment."""
+        try:
+            from workers.modal_worker import process_modal_job
+            process_modal_job(task_payload)
+        except Exception as exc:  # pragma: no cover - exercised by local integration runs
+            logger.exception("Local demo worker failed for %s", task_payload.get("job_id"))
+            appwrite_service.update_job_status(
+                task_payload.get("job_id", ""),
+                "FAILED",
+                stage=0,
+                progress=0,
+                tenant_id=task_payload.get("tenant_id"),
+                error_json={"code": "LOCAL_WORKER_FAILED", "message": str(exc)[:500], "retryable": False},
+                message="Local demo worker failed",
+            )
+
     def submit(self, task_payload: Dict[str, Any]) -> str:
         try:
             call = self._function().spawn(task_payload)
             return str(call.object_id)
         except RuntimeError:
             if settings.DEBUG or settings.ENVIRONMENT == "test":
-                return f"local-modal-{uuid4().hex}"
+                provider_job_id = f"local-modal-{uuid4().hex}"
+                # Delay slightly so the API can persist ENQUEUED before the worker
+                # writes RUNNING/COMPLETE to the same in-memory or Appwrite record.
+                threading.Timer(0.25, self._run_local, args=(task_payload,)).start()
+                return provider_job_id
             raise
 
     def get_state(self, provider_job_id: str, timeout: float = 0) -> ModalCallState:

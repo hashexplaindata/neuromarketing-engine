@@ -231,8 +231,9 @@ def analyze_single_image(
     biometrics_eng: BiometricsEngine,
     linguistics_eng: LinguisticsEngine,
     neuro_eng: NeuromarketingScienceEngine,
-    ctr_regressor: CTRRegressor,
-    output_dir: str
+    ctr_regressor: Optional[CTRRegressor],
+    output_dir: str,
+    include_experimental: bool = False
 ) -> Dict[str, Any]:
     """Analyzes any single image format with the complete multi-tier science stack."""
     image_rgb = MediaProcessor.load_image(image_path)
@@ -274,34 +275,33 @@ def analyze_single_image(
         linguistics_data=linguistics
     )
 
-    # Empirical CTR Regressor (XGBoost)
-    has_gaze_cue = any(f.get("gaze_vector", {}).get("channels_into_headline") for f in biometrics.get("faces", []))
-    ctr_forecast = ctr_regressor.predict_ctr(
-        s_auc=metrics["s_auc"],
-        nss=metrics["nss"],
-        cognitive_load_index=metrics["cognitive_load"]["cognitive_load_index"],
-        hero_attention_share=hero_share,
-        visual_engagement_proxy=neuro_indices["visual_approach_proxy"]["score"],
-        visual_encoding_proxy_pct=neuro_indices["visual_encoding_proxy"]["score_pct"],
-        gaze_cued_headline=has_gaze_cue,
-        weber_contrast_ratio=linguistics["mobile_weber_contrast_ratio"]
-    )
+    ctr_forecast = None
+    if include_experimental and ctr_regressor is not None:
+        has_gaze_cue = any(f.get("gaze_vector", {}).get("channels_into_headline") for f in biometrics.get("faces", []))
+        ctr_forecast = ctr_regressor.predict_ctr(
+            s_auc=metrics["s_auc"],
+            nss=metrics["nss"],
+            cognitive_load_index=metrics["cognitive_load"]["cognitive_load_index"],
+            hero_attention_share=hero_share,
+            visual_engagement_proxy=neuro_indices["visual_approach_proxy"]["score"],
+            visual_encoding_proxy_pct=neuro_indices["visual_encoding_proxy"]["score_pct"],
+            gaze_cued_headline=has_gaze_cue,
+            weber_contrast_ratio=linguistics["mobile_weber_contrast_ratio"]
+        )
 
-    # 2^3 Factorial Experiment
-    hero_det = None
-    if person_blocks:
-        hero_det = person_blocks[0]
-    elif len(detections) > 0:
-        hero_det = max(detections, key=lambda x: x.get('fixation_share_pct', 0))
-
-    if hero_det:
-        with VRAMManager.vram_stage("n_factorial_matrix"):
-            nfact = run_nfactorial_experiment(
-                image_rgb, hero_det['bbox'], text_blocks, saliency_eng,
-                output_dir=os.path.join(output_dir, "variants")
-            )
-    else:
-        nfact = None
+    nfact = None
+    if include_experimental:
+        hero_det = None
+        if person_blocks:
+            hero_det = person_blocks[0]
+        elif len(detections) > 0:
+            hero_det = max(detections, key=lambda x: x.get('fixation_share_pct', 0))
+        if hero_det:
+            with VRAMManager.vram_stage("n_factorial_matrix"):
+                nfact = run_nfactorial_experiment(
+                    image_rgb, hero_det['bbox'], text_blocks, saliency_eng,
+                    output_dir=os.path.join(output_dir, "variants")
+                )
 
     # Render Visualizations
     heatmap_path = os.path.join(output_dir, "heatmap.png")
@@ -312,16 +312,14 @@ def analyze_single_image(
     render_focus_map(image_rgb, saliency_map, focus_path)
     render_scanpath(image_rgb, scanpath, biometrics, scanpath_path)
 
-    return {
+    result = {
         "resolution": f"{orig_w}x{orig_h}",
         "metrics": metrics,
         "biometrics": biometrics,
         "linguistics": linguistics,
         "neuromarketing_indices": neuro_indices,
-        "ctr_forecast": ctr_forecast,
         "detections": detections,
         "scanpath": scanpath,
-        "n_factorial": nfact,
         "visual_artifacts": {
             "original_image": image_path,
             "thermal_heatmap": heatmap_path,
@@ -329,9 +327,13 @@ def analyze_single_image(
             "scanpath_map": scanpath_path
         }
     }
+    if include_experimental:
+        result["ctr_forecast"] = ctr_forecast
+        result["n_factorial"] = nfact
+    return result
 
 
-def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, output_dir: Optional[str] = None) -> dict:
+def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, output_dir: Optional[str] = None, objective: str = "OVERALL_HIERARCHY") -> dict:
     """Universal image/video entrypoint with an optional job-scoped output directory."""
     start_time = time.time()
     output_dir = output_dir or os.path.join(PROJECT_ROOT, "output", "analysis_results")
@@ -356,24 +358,19 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, outpu
     biometrics_eng = BiometricsEngine()
     linguistics_eng = LinguisticsEngine()
     neuro_eng = NeuromarketingScienceEngine()
-    ctr_regressor = CTRRegressor()
+    ctr_regressor = CTRRegressor() if is_video else None
 
     if not is_video:
-        analysis_res = analyze_single_image(input_media_path, saliency_eng, detector, biometrics_eng, linguistics_eng, neuro_eng, ctr_regressor, output_dir)
+        analysis_res = analyze_single_image(input_media_path, saliency_eng, detector, biometrics_eng, linguistics_eng, neuro_eng, ctr_regressor, output_dir, include_experimental=False)
         
         # Executive Scorecard Synthesis
         report_metrics = {
             's_auc': analysis_res["metrics"]['s_auc'],
             'nss_score': analysis_res["metrics"]['nss'],
             'cognitive_load_score': analysis_res["metrics"]['cognitive_load']['cognitive_load_index'],
-            'winning_variant': analysis_res["n_factorial"]['winner'] if analysis_res["n_factorial"] else 'Baseline',
-            'model_derived_cohens_d': analysis_res["n_factorial"]['cohens_d'] if analysis_res["n_factorial"] else 0.0,
             'visual_engagement_proxy_score': analysis_res["neuromarketing_indices"]['visual_approach_proxy']['score'],
             'visual_encoding_proxy_score': analysis_res["neuromarketing_indices"]['visual_encoding_proxy']['score_pct'],
-            'predicted_ctr': analysis_res["ctr_forecast"]["predicted_ctr_pct"],
-            'viral_ctr_grade': analysis_res["neuromarketing_indices"]['viral_ctr_potential']['grade'],
             'mobile_legibility': analysis_res["linguistics"]['mobile_legibility_score'],
-            'face_competition_index': analysis_res["biometrics"]['face_competition_index'],
             'detections': [{k: v for k, v in d.items() if k != 'saliency_map'} for d in analysis_res["detections"]],
             'scanpath_sequence': analysis_res["scanpath"]
         }
@@ -392,13 +389,25 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, outpu
                 "resolution": analysis_res["resolution"]
             },
             "metrics": analysis_res["metrics"],
-            "biometrics": analysis_res["biometrics"],
             "linguistics": analysis_res["linguistics"],
-            "neuromarketing_indices": analysis_res["neuromarketing_indices"],
-            "ctr_forecast": analysis_res["ctr_forecast"],
             "detections": analysis_res["detections"],
             "scanpath": analysis_res["scanpath"],
-            "n_factorial": analysis_res["n_factorial"],
+            "mvp_diagnostic": {
+                "objective": objective,
+                "evidence_status": "MODEL_PREDICTED",
+                "attention_metrics": {
+                    "s_auc": analysis_res["metrics"].get("s_auc"),
+                    "nss": analysis_res["metrics"].get("nss"),
+                    "fixation_count": analysis_res["metrics"].get("fixation_count"),
+                },
+                "visual_structure_proxies": {
+                    "visual_complexity_proxy": analysis_res["metrics"].get("cognitive_load", {}).get("cognitive_load_index"),
+                    "text_legibility_proxy": analysis_res["linguistics"].get("mobile_legibility_score"),
+                    "detected_text_count": analysis_res["linguistics"].get("detected_text_count"),
+                },
+            },
+            "evidence_status": "MODEL_PREDICTED",
+            "interpretation_boundary": "These are model-predicted visual-attention and image-structure diagnostics. They do not establish participant attention, emotion, neural activity, clicks, conversion, or causal lift.",
             "scorecard": scorecard,
             "visual_artifacts": analysis_res["visual_artifacts"]
         }
@@ -411,7 +420,7 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, outpu
         
         temporal_timeline = []
         for f in frames:
-            f_res = analyze_single_image(f["frame_path"], saliency_eng, detector, biometrics_eng, linguistics_eng, neuro_eng, ctr_regressor, frames_dir)
+            f_res = analyze_single_image(f["frame_path"], saliency_eng, detector, biometrics_eng, linguistics_eng, neuro_eng, ctr_regressor, frames_dir, include_experimental=True)
             temporal_timeline.append({
                 "timestamp_sec": f["timestamp_sec"],
                 "frame_index": f["frame_index"],
@@ -438,6 +447,7 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, outpu
                 "total_frames_analyzed": len(frames),
                 "sample_rate_fps": fps_sample_rate
             },
+            "mvp_diagnostic": {"objective": objective, "evidence_status": "MODEL_PREDICTED"},
             "video_temporal_analytics": {
                 "initial_3s_hook_ctr_pct": round(avg_hook_ctr, 2),
                 "second_by_second_timeline": temporal_timeline
@@ -456,7 +466,7 @@ def run_full_pipeline(input_media_path: str, fps_sample_rate: float = 1.0, outpu
 
     print("\n" + "=" * 85)
     print(f"PIPELINE COMPLETE in {elapsed:.1f}s")
-    print(f"Predicted Expected CTR: {final_report.get('ctr_forecast', {}).get('predicted_ctr_pct', 'N/A')}%")
+    print("Client-facing CTR forecast: DISABLED until real impression/click training data is validated")
     print("=" * 85)
 
     return final_report
