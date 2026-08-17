@@ -18,7 +18,7 @@ import modal
 
 ROOT = Path(__file__).resolve().parent
 APP_NAME = "neuromarketing-studio"
-RUNTIME_SECRET = "neuromarketing-studio-runtime"
+RUNTIME_SECRET = "custom-secrets-neuromarketing"
 
 image = modal.Image.from_dockerfile(str(ROOT / "Dockerfile.worker"))
 app = modal.App(APP_NAME)
